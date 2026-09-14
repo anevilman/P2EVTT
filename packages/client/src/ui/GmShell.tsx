@@ -1,11 +1,15 @@
 import type { Presence } from "@p2evtt/shared";
+import type { Theme } from "../theme";
+import { ThemeToggle } from "./ThemeToggle";
 
 type Props = {
   you: Presence;
   players: Presence[];
+  theme: Theme;
+  onToggleTheme: () => void;
 };
 
-export function GmShell({ you, players }: Props) {
+export function GmShell({ you, players, theme, onToggleTheme }: Props) {
   return (
     <div className="shell gm">
       <header className="topbar">
@@ -15,6 +19,7 @@ export function GmShell({ you, players }: Props) {
         <span className="invite" title="Share this URL. Players just open it in a browser.">
           Invite: {location.host}
         </span>
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </header>
       <aside className="left">
         <h2>Library</h2>

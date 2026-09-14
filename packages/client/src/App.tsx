@@ -8,6 +8,7 @@ import {
   saveDisplayName,
   saveSessionToken,
 } from "./storage";
+import { useTheme } from "./useTheme";
 import { GmShell } from "./ui/GmShell";
 import { JoinScreen } from "./ui/JoinScreen";
 import { PlayerShell } from "./ui/PlayerShell";
@@ -20,6 +21,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<TableSession | null>(null);
   const [players, setPlayers] = useState<Presence[]>([]);
+  const { theme, toggle: toggleTheme } = useTheme();
 
   const join = (displayName: string, wantGm: boolean) => {
     if (displayName.length < 1) return;
@@ -55,10 +57,24 @@ export function App() {
   };
 
   if (session?.you.role === "gm") {
-    return <GmShell you={session.you} players={players} />;
+    return (
+      <GmShell
+        you={session.you}
+        players={players}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
   }
   if (session?.you.role === "player") {
-    return <PlayerShell you={session.you} players={players} />;
+    return (
+      <PlayerShell
+        you={session.you}
+        players={players}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
   }
 
   return (
@@ -66,6 +82,8 @@ export function App() {
       defaultName={loadDisplayName()}
       busy={busy}
       error={error}
+      theme={theme}
+      onToggleTheme={toggleTheme}
       onJoin={join}
     />
   );

@@ -1,17 +1,22 @@
 import type { Presence } from "@p2evtt/shared";
+import type { Theme } from "../theme";
+import { ThemeToggle } from "./ThemeToggle";
 
 type Props = {
   you: Presence;
   players: Presence[];
+  theme: Theme;
+  onToggleTheme: () => void;
 };
 
-export function PlayerShell({ you, players }: Props) {
+export function PlayerShell({ you, players, theme, onToggleTheme }: Props) {
   return (
     <div className="shell player">
       <header className="topbar">
         <strong>P2EVTT</strong>
         <span className="role">player</span>
         <span className="you">{you.displayName}</span>
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </header>
       <aside className="left">
         <h2>Party</h2>

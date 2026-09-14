@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { APP_NAME, APP_VERSION } from "@p2evtt/shared";
+import type { Theme } from "../theme";
+import { ThemeToggle } from "./ThemeToggle";
 
 type TableStatus = {
   hasGm: boolean;
@@ -11,10 +13,19 @@ type Props = {
   defaultName: string;
   busy: boolean;
   error: string | null;
+  theme: Theme;
+  onToggleTheme: () => void;
   onJoin: (displayName: string, wantGm: boolean) => void;
 };
 
-export function JoinScreen({ defaultName, busy, error, onJoin }: Props) {
+export function JoinScreen({
+  defaultName,
+  busy,
+  error,
+  theme,
+  onToggleTheme,
+  onJoin,
+}: Props) {
   const [name, setName] = useState(defaultName);
   const [status, setStatus] = useState<TableStatus | null>(null);
 
@@ -51,6 +62,7 @@ export function JoinScreen({ defaultName, busy, error, onJoin }: Props) {
 
   return (
     <main className="splash">
+      <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       <h1>{APP_NAME}</h1>
       <p className="tagline">Pathfinder 2e virtual tabletop — local table</p>
       <p className="meta">Open this page in a browser. Only the host runs the server.</p>
