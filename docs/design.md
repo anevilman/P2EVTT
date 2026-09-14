@@ -21,7 +21,7 @@ Solo estimate **~8–12 weeks** to v1 (shorter than the anti-cheat-heavy draft).
 ## What we are building (v1)
 
 - GM runs `pnpm dev` (Node 22 LTS). Players open a browser to `http://<host>:7788` (localhost by default; `--lan` for other machines on the network).
-- One campaign, one active scene. Background image + square grid from **squares-across (or px-per-square) + GM nudge**.
+- One campaign, **many scenes in a GM scene library**, one **active** scene at a time. Each scene has a name, background image, and (later) its own grid, walls, tokens, and FoW. Switching scenes is a GM action; every client follows.
 - Reusable token library. Placed tokens with PF2e sizes. GM assigns who may move which token.
 - **PC tokens:** character sheet in the player UI (owner) and GM UI.
 - **NPC tokens:** optional monster stat block in the **GM UI only** (players do not get that panel).
@@ -51,7 +51,7 @@ One client app, two chrome shells driven by `role: 'gm' | 'player'`. Same Pixi m
 └────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-GM-only: wall/door tools, light placement, FoW reveal/hide/reset, token library (unplaced prototypes), hide/reveal token, NPC stat block editor, control assignment, scene upload/grid nudge, kick/rename, backup, Player-view preview (see the map as a chosen player).
+GM-only: wall/door tools, light placement, FoW reveal/hide/reset, token library (unplaced prototypes), **scene library** (create / rename / delete / switch active / upload that scene’s map), hide/reveal token, NPC stat block editor, control assignment, grid nudge, kick/rename, backup, Player-view preview (see the map as a chosen player).
 
 ### Player interface
 
@@ -116,7 +116,7 @@ Server picks the number so every client plays the **same** 3D landing (sync, not
 
 ## Features
 
-**Requested, in v1:** local server, browser clients, two UIs, 2D rooms + background, grid overlay, multiplayer + one DM, savable tokens, assignable control, PC sheets, NPC tokens ± stat blocks (GM UI), dice + 3D polyhedra, FoW (DM paint + token vision), lighting.
+**Requested, in v1:** local server, browser clients, two UIs, 2D rooms + background, **scene library** (named maps the GM can switch between), grid overlay, multiplayer + one DM, savable tokens, assignable control, PC sheets, NPC tokens ± stat blocks (GM UI), dice + 3D polyhedra, FoW (DM paint + token vision), lighting.
 
 **Also in v1 because a session needs them:** walls/doors, hidden tokens (GM UI), chat + roll log, pointer, ruler, 5-ft diagonals, collision so Large tokens do not walk through walls, initiative tracker, condition badges, backup zip, sheet roll buttons.
 
@@ -135,7 +135,7 @@ Server picks the number so every client plays the **same** 3D landing (sync, not
 | K3 | Fastify + WebSockets. Gameplay on WS; HTTP for media and backup. |
 | K4 | SQLite via Drizzle. Backup via `backup()` / `VACUUM INTO`. |
 | K5 | Server is the shared table. Broadcast scene state. **Do not** filter the wire for anti-cheat. Player vs GM is **which UI and which tools**. |
-| K6 | One active scene. |
+| K6 | **Scene library, one active scene.** Campaign holds many scenes. GM creates/renames/deletes and switches which one the table is on. Players do not get a scene picker — they just see the active map. Token *prototypes* are campaign-wide; *placed* tokens, walls, lights, and FoW belong to a scene. |
 | K7 | Hybrid actors: indexed HP/name/type + `sheet_json`. Conditions on tokens. |
 | K8 | Vision in `shared`, run on the server so Player view matches. Used to **draw** FoW, not to strip packets. |
 | K9 | Two-stage per-source vision; shared-party explored fog. |
@@ -153,6 +153,7 @@ Server picks the number so every client plays the **same** 3D landing (sync, not
 | K21 | LOS unlimited-in-scene unless a feet cap is set; convert cap to pixels. |
 | K22 | NPC stat blocks are a **GM panel**. Players never get that UI. No need to omit the JSON from the socket. |
 | K23 | **Two chrome shells** from day one (PR-04b already branches layout). |
+| K24 | **Scene library is v1, GM-only.** Minimum: list, new scene, rename, delete (not the last scene), set active, per-scene background upload. Duplicate scene is P1. |
 
 ---
 
@@ -166,7 +167,8 @@ First playable: **PR-04b** (map + one token). FoW after walls. GM vs player chro
 | 02 | Protocol + WebSocket presence | 1d | 01 |
 | 03 | SQLite, campaign, join code, **role on session** | 1.5d | 02 |
 | 04a | Scene background + Pixi pan/zoom | 1.5d | 03 |
-| **04b** | **One token + move-on-drop. Split GM vs player chrome** (GM: inspector; player: no tools yet) | 1.5d | 04a |
+| **04c** | **Scene library** (list / new / rename / delete / switch active / per-scene map upload) | 2d | 04a |
+| **04b** | **One token + move-on-drop. Split GM vs player chrome** (GM: inspector; player: no tools yet) | 1.5d | 04c |
 | 05 | Grid from squares-across, snap, `occupiedSquares` | 1d | 04b |
 | 06 | Token library (GM panel), sizes, facing, many tokens | 2d | 05 |
 | 07 | Actors, control assignment (**GM assigns; player can only move assigned**) | 2d | 06 |
@@ -187,9 +189,9 @@ First playable: **PR-04b** (map + one token). FoW after walls. GM vs player chro
 | 17 | Backup zip + polish | 2d | after 16 |
 | 18 | *(P1)* Drawings + AoE templates | ~1w | 15, 12 |
 
-**Merge order:** 01 → 02 → 03 → 04a → 04b → 05 → 06 → 07 → 08a → 08b → 09 → 10 → 11, with 12 after 07. 13a after 12. 13b → 13c → 13d → 14. 15 after 13d. 16 after 08b+10. 17 last.
+**Merge order:** 01 → 02 → 03 → 04a → **04c** → 04b → 05 → 06 → 07 → 08a → 08b → 09 → 10 → 11, with 12 after 07. 13a after 12. 13b → 13c → 13d → 14. 15 after 13d. 16 after 08b+10. 17 last.
 
-**v1 exit criteria:** GM and four friends on a LAN. GM screen has walls, library, NPC blocks, unfogged map, Player-view toggle. Player screens have FoW, no wall tools, their sheet, tokens they control. Load a map, grid, PC + NPC tokens, assign control, roll a strike with 3D dice, walk into a room and reveal fog, darkvision vs a dark corner, ping, three-round encounter, backup zip. Opening DevTools is not a test.
+**v1 exit criteria:** GM and four friends on a LAN. GM screen has a **scene library** (at least two named maps, switch mid-session), walls, token library, NPC blocks, unfogged map, Player-view toggle. Player screens have FoW, no wall tools, their sheet, tokens they control. Load a map, grid, PC + NPC tokens, assign control, roll a strike with 3D dice, walk into a room and reveal fog, darkvision vs a dark corner, ping, three-round encounter, backup zip. Opening DevTools is not a test.
 
 ---
 
