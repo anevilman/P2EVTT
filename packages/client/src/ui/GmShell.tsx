@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { LibraryFolder, Presence, ScenePublic, SceneSummary } from "@p2evtt/shared";
 import { MapViewport } from "../game/MapViewport";
 import type { Theme } from "../theme";
+import { Dock } from "./Dock";
 import type { Selection } from "./library/LibraryTree";
 import { MapUpload } from "./MapUpload";
 import { SceneLibrary } from "./SceneLibrary";
@@ -56,43 +57,72 @@ export function GmShell({
         </span>
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </header>
-      <aside className="left">
-        <SceneLibrary
-          sessionToken={sessionToken}
-          live={scene}
-          library={library}
-          folders={folders}
-          selection={selection}
-          onSelect={setSelection}
-        />
-        <MapUpload sessionToken={sessionToken} sceneId={selectedScene.id} />
-        <h2>Tokens</h2>
-        <p className="placeholder">Token library comes next.</p>
-      </aside>
+      <Dock
+        storageKey="p2evtt.dock.gm"
+        defaultTab="scenes"
+        tabs={[
+          {
+            id: "scenes",
+            label: "Scenes",
+            content: (
+              <>
+                <SceneLibrary
+                  sessionToken={sessionToken}
+                  live={scene}
+                  library={library}
+                  folders={folders}
+                  selection={selection}
+                  onSelect={setSelection}
+                />
+                <MapUpload sessionToken={sessionToken} sceneId={selectedScene.id} />
+              </>
+            ),
+          },
+          {
+            id: "tokens",
+            label: "Tokens",
+            content: (
+              <>
+                <h2>Tokens</h2>
+                <p className="placeholder">Token library comes next. Same folder tree as scenes.</p>
+              </>
+            ),
+          },
+          {
+            id: "inspect",
+            label: "Inspect",
+            content: (
+              <>
+                <h2>Inspector</h2>
+                <p className="placeholder">Token and actor details.</p>
+                <h2>At the table</h2>
+                <PresenceList players={players} />
+              </>
+            ),
+          },
+        ]}
+      />
       <section className="map">
         {previewingOther ? (
           <p className="map-edit-banner">Players are still on {scene.name}</p>
         ) : null}
-        <MapViewport
-          key={selectedScene.id}
-          backgroundUrl={selectedScene.backgroundUrl}
-        />
+        <MapViewport key={selectedScene.id} backgroundUrl={selectedScene.backgroundUrl} />
       </section>
-      <aside className="right">
-        <h2>Inspector</h2>
-        <p className="placeholder">Token and actor details.</p>
-        <h2>At the table</h2>
-        <ul className="presence">
-          {players.map((p) => (
-            <li key={p.id}>
-              <span className={p.role === "gm" ? "badge" : "role"}>{p.role}</span> {p.displayName}
-            </li>
-          ))}
-        </ul>
-      </aside>
       <footer className="bottom">
         <p className="placeholder">Chat and dice will live here.</p>
       </footer>
     </div>
+  );
+}
+
+function PresenceList({ players }: { players: Presence[] }) {
+  return (
+    <ul className="presence">
+      {players.map((p) => (
+        <li key={p.id}>
+          <span className={p.role === "gm" ? "badge" : "role"}>{p.role}</span> {p.displayName}
+        </li>
+      ))}
+    </ul>
   );
 }

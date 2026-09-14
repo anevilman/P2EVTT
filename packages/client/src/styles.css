@@ -200,12 +200,12 @@ h1 {
 .shell {
   height: 100vh;
   display: grid;
-  grid-template-columns: 22rem 1fr 14rem;
+  grid-template-columns: auto 1fr;
   grid-template-rows: 2.75rem 1fr 7rem;
   grid-template-areas:
-    "top top top"
-    "left map right"
-    "bottom bottom bottom";
+    "top top"
+    "dock map"
+    "bottom bottom";
   background: var(--bg);
 }
 
@@ -219,15 +219,60 @@ h1 {
   background: var(--bg-elevated);
 }
 
-.left {
-  grid-area: left;
+.dock {
+  grid-area: dock;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+}
+
+.dock-rail {
+  width: 3.4rem;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  gap: 0.3rem;
+  padding: 0.4rem;
   border-right: 1px solid var(--border);
+}
+
+.dock-tab {
+  cursor: pointer;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 0.7rem 0.35rem;
+}
+
+.dock-tab:hover {
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+.dock-tab.active {
+  color: var(--accent-fg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.dock-panel {
+  width: 22rem;
+  min-width: 18rem;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding: 0.75rem;
-  overflow: hidden;
-  background: var(--bg-elevated);
+  overflow: auto;
 }
 
 .map {
@@ -318,6 +363,29 @@ h1 {
   align-items: center;
   gap: 0.15rem;
   padding-right: 0.2rem;
+}
+
+.lib-twist,
+.lib-twist-spacer {
+  flex-shrink: 0;
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.lib-twist {
+  cursor: pointer;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  padding: 0;
+  font-size: 0.75rem;
+  line-height: 1.15rem;
+}
+
+.lib-twist:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
 }
 
 .lib-row.selected {
@@ -452,14 +520,6 @@ h1 {
 
 .file-btn:hover {
   border-color: var(--accent);
-}
-
-.right {
-  grid-area: right;
-  border-left: 1px solid var(--border);
-  padding: 0.8rem;
-  overflow: auto;
-  background: var(--bg-elevated);
 }
 
 .bottom {

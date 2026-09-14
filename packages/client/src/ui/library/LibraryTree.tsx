@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { LibraryFolder } from "@p2evtt/shared";
 
 export type TreeItem = {
@@ -32,8 +33,20 @@ type Props<T extends TreeItem> = {
 
 const ITEM_DRAG = "text/plain";
 const ITEM_PREFIX = "p2evtt-item:";
+const ROOT_ID = "__root__";
 
 export function LibraryTree<T extends TreeItem>(props: Props<T>) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const expanded = (id: string) => !collapsed.has(id);
+  const toggle = (id: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const rootSelected = props.selection.kind === "root";
   return (
     <ul className="lib-tree">
@@ -45,9 +58,11 @@ export function LibraryTree<T extends TreeItem>(props: Props<T>) {
           editing={false}
           draft=""
           name="Library"
+          twist={expanded(ROOT_ID) ? "expanded" : "collapsed"}
           dropFolderId={null}
           onDraft={props.onDraft}
           onClick={() => props.onSelect({ kind: "root" })}
+          onToggle={() => toggle(ROOT_ID)}
           onStartRename={() => undefined}
           onCommitRename={() => undefined}
           onCancelRename={props.onCancelRename}
@@ -55,13 +70,19 @@ export function LibraryTree<T extends TreeItem>(props: Props<T>) {
           hideDelete
           onMoveItem={props.onMoveItem}
         />
-        <ul className="lib-tree">{renderLevel(null, 1, props)}</ul>
+        {expanded(ROOT_ID) ? <ul className="lib-tree">{renderLevel(null, 1, props, expanded, toggle)}</ul> : null}
       </li>
     </ul>
   );
 }
 
-function renderLevel<T extends TreeItem>(parentId: string | null, depth: number, props: Props<T>) {
+function renderLevel<T extends TreeItem>(
+  parentId: string | null,
+  depth: number,
+  props: Props<T>,
+  expanded: (id: string) => boolean,
+  toggle: (id: string) => void,
+) {
   const folders = props.folders
     .filter((f) => f.parentId === parentId)
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -73,6 +94,7 @@ function renderLevel<T extends TreeItem>(parentId: string | null, depth: number,
     <>
       {folders.map((folder) => {
         const selected = props.selection.kind === "folder" && props.selection.id === folder.id;
+        const open = expanded(folder.id);
         return (
           <li key={`folder-${folder.id}`}>
             <TreeRow
@@ -82,17 +104,18 @@ function renderLevel<T extends TreeItem>(parentId: string | null, depth: number,
               editing={props.editingId === folder.id}
               draft={props.draft}
               name={folder.name}
-              labelPrefix="▸"
+              twist={open ? "expanded" : "collapsed"}
               dropFolderId={folder.id}
               onDraft={props.onDraft}
               onClick={() => props.onSelect({ kind: "folder", id: folder.id })}
+              onToggle={() => toggle(folder.id)}
               onStartRename={() => props.onStartRename(folder.id, folder.name)}
               onCommitRename={() => props.onCommitRename(folder.id)}
               onCancelRename={props.onCancelRename}
               onDelete={() => props.onDeleteFolder(folder.id)}
               onMoveItem={props.onMoveItem}
             />
-            <ul className="lib-tree">{renderLevel(folder.id, depth + 1, props)}</ul>
+            {open ? <ul className="lib-tree">{renderLevel(folder.id, depth + 1, props, expanded, toggle)}</ul> : null}
           </li>
         );
       })}
@@ -135,9 +158,10 @@ type RowProps = {
   draft: string;
   name: string;
   badge?: string | null;
-  labelPrefix?: string;
+  twist?: "expanded" | "collapsed";
   onDraft: (value: string) => void;
   onClick: () => void;
+  onToggle?: () => void;
   onStartRename: () => void;
   onCommitRename: () => void;
   onCancelRename: () => void;
@@ -183,6 +207,22 @@ function TreeRow(props: RowProps) {
           : undefined
       }
     >
+      {props.twist ? (
+        <button
+          type="button"
+          className="lib-twist"
+          aria-label={props.twist === "expanded" ? "Collapse folder" : "Expand folder"}
+          aria-expanded={props.twist === "expanded"}
+          onClick={(e) => {
+            e.stopPropagation();
+            props.onToggle?.();
+          }}
+        >
+          {props.twist === "expanded" ? "▾" : "▸"}
+        </button>
+      ) : (
+        <span className="lib-twist-spacer" />
+      )}
       {props.editing ? (
         <input
           className="scene-rename"
@@ -212,7 +252,6 @@ function TreeRow(props: RowProps) {
           onClick={props.onClick}
           onDoubleClick={props.onStartRename}
         >
-          {props.labelPrefix ? `${props.labelPrefix} ` : ""}
           {props.name}
           {props.badge ? <span className="lib-badge">{props.badge}</span> : null}
         </button>
