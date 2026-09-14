@@ -5,6 +5,7 @@ import middie from "@fastify/middie";
 import multipart from "@fastify/multipart";
 import { createServer as createViteServer } from "vite";
 import { APP_NAME, APP_VERSION, DEFAULT_PORT } from "@p2evtt/shared";
+import { errorMessage, requireGm } from "./http";
 import { SceneStore } from "./scene";
 import { Table } from "./table";
 import { registerWs } from "./ws";
@@ -21,7 +22,7 @@ function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     lan: false,
     port: DEFAULT_PORT,
-    dataDir: path.resolve(process.cwd(), "data"),
+    dataDir: path.resolve(__dirname, "../../../data"),
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -49,9 +50,10 @@ async function main() {
 
   const table = new Table();
   const scene = new SceneStore(
-    path.join(args.dataDir, "media"),
+    args.dataDir,
     path.resolve(__dirname, "../fixtures/maps/test-dungeon.jpg"),
   );
+  await scene.load();
 
   await app.register(multipart, { limits: { fileSize: 12 * 1024 * 1024 } });
 
@@ -67,24 +69,72 @@ async function main() {
     seated: table.list().length,
   }));
 
-  app.get("/media/scene-bg", async (_req, reply) => scene.sendFile(reply));
+  app.get("/media/scenes/:id", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    return scene.sendFile(id, reply);
+  });
 
-  app.post("/api/scene/background", async (req, reply) => {
-    const token = String(req.headers["x-session-token"] ?? "");
-    const seat = table.getByToken(token);
-    if (!seat || seat.role !== "gm") {
-      return reply.code(403).send({ error: "Only the GM can change the map." });
+  app.post("/api/scenes", async (req, reply) => {
+    if (!requireGm(req, reply, table)) return;
+    const name = String((req.body as { name?: unknown } | null)?.name ?? "New scene");
+    try {
+      const snap = await scene.create(name);
+      table.broadcast({ type: "scene.updated", ...snap });
+      return snap;
+    } catch (err) {
+      return reply.code(400).send({ error: errorMessage(err, "Could not create scene") });
     }
+  });
+
+  app.patch("/api/scenes/:id", async (req, reply) => {
+    if (!requireGm(req, reply, table)) return;
+    const { id } = req.params as { id: string };
+    const name = String((req.body as { name?: unknown } | null)?.name ?? "");
+    try {
+      const snap = await scene.rename(id, name);
+      table.broadcast({ type: "scene.updated", ...snap });
+      return snap;
+    } catch (err) {
+      return reply.code(400).send({ error: errorMessage(err, "Could not rename scene") });
+    }
+  });
+
+  app.delete("/api/scenes/:id", async (req, reply) => {
+    if (!requireGm(req, reply, table)) return;
+    const { id } = req.params as { id: string };
+    try {
+      const snap = await scene.remove(id);
+      table.broadcast({ type: "scene.updated", ...snap });
+      return snap;
+    } catch (err) {
+      return reply.code(400).send({ error: errorMessage(err, "Could not delete scene") });
+    }
+  });
+
+  app.post("/api/scenes/:id/activate", async (req, reply) => {
+    if (!requireGm(req, reply, table)) return;
+    const { id } = req.params as { id: string };
+    try {
+      const snap = await scene.activate(id);
+      table.broadcast({ type: "scene.updated", ...snap });
+      return snap;
+    } catch (err) {
+      return reply.code(400).send({ error: errorMessage(err, "Could not switch scene") });
+    }
+  });
+
+  app.post("/api/scenes/:id/background", async (req, reply) => {
+    if (!requireGm(req, reply, table)) return;
+    const { id } = req.params as { id: string };
     const file = await req.file();
     if (!file) return reply.code(400).send({ error: "Choose an image file." });
     const bytes = await file.toBuffer();
     try {
-      const next = await scene.saveUpload(bytes, file.mimetype);
-      table.broadcast({ type: "scene.updated", scene: next });
-      return next;
+      const snap = await scene.saveUpload(id, bytes, file.mimetype);
+      table.broadcast({ type: "scene.updated", ...snap });
+      return snap;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Upload failed";
-      return reply.code(400).send({ error: message });
+      return reply.code(400).send({ error: errorMessage(err, "Upload failed") });
     }
   });
 

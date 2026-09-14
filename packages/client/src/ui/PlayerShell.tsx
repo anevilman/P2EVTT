@@ -17,6 +17,7 @@ export function PlayerShell({ you, players, scene, theme, onToggleTheme }: Props
       <header className="topbar">
         <strong>P2EVTT</strong>
         <span className="role">player</span>
+        <span className="scene-title">{scene.name}</span>
         <span className="you">{you.displayName}</span>
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </header>
@@ -31,7 +32,7 @@ export function PlayerShell({ you, players, scene, theme, onToggleTheme }: Props
         </ul>
       </aside>
       <section className="map">
-        <MapViewport backgroundUrl={scene.backgroundUrl} />
+        <MapViewport key={scene.id} backgroundUrl={scene.backgroundUrl} />
       </section>
       <aside className="right">
         <h2>My sheet</h2>

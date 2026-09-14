@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Application, Container, Rectangle, Sprite, Texture } from "pixi.js";
 
 type Props = {
-  backgroundUrl: string;
+  backgroundUrl: string | null;
 };
 
 function loadImageTexture(url: string): Promise<Texture> {
@@ -29,9 +29,15 @@ function waitForSize(el: HTMLElement): Promise<void> {
 
 export function MapViewport({ backgroundUrl }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const [status, setStatus] = useState("Loading map…");
+  const [status, setStatus] = useState(
+    backgroundUrl ? "Loading map…" : "No map image yet — GM can upload one.",
+  );
 
   useEffect(() => {
+    if (!backgroundUrl) {
+      setStatus("No map image yet — GM can upload one.");
+      return;
+    }
     const host = hostRef.current;
     if (!host) return;
 

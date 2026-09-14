@@ -51,6 +51,7 @@ export async function registerWs(
           return;
         }
         const players = table.list();
+        const snap = scene.snapshot();
         socket.send(
           JSON.stringify({
             type: "hello.ok",
@@ -61,7 +62,8 @@ export async function registerWs(
               role: result.seat.role,
             },
             players,
-            scene: scene.toPublic(),
+            scene: snap.scene,
+            library: snap.library,
           }),
         );
         table.broadcast({ type: "presence", players }, socket);

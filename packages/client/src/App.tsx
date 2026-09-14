@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { Presence, ScenePublic } from "@p2evtt/shared";
+import type { Presence, ScenePublic, SceneSummary } from "@p2evtt/shared";
 import { connectTable, type TableSession } from "./net/socket";
 import type { ClientMsg } from "@p2evtt/shared";
 import {
@@ -22,6 +22,7 @@ export function App() {
   const [session, setSession] = useState<TableSession | null>(null);
   const [players, setPlayers] = useState<Presence[]>([]);
   const [scene, setScene] = useState<ScenePublic | null>(null);
+  const [library, setLibrary] = useState<SceneSummary[]>([]);
   const { theme, toggle: toggleTheme } = useTheme();
 
   const join = (displayName: string, wantGm: boolean) => {
@@ -40,10 +41,14 @@ export function App() {
           setSession(next);
           setPlayers(next.players);
           setScene(next.scene);
+          setLibrary(next.library);
           setBusy(false);
         },
         onPresence: (list) => setPlayers(list),
-        onScene: (next) => setScene(next),
+        onScene: (next, nextLibrary) => {
+          setScene(next);
+          setLibrary(nextLibrary);
+        },
         onRejected: (reason) => {
           conn.current?.close();
           conn.current = null;
@@ -65,6 +70,7 @@ export function App() {
         you={session.you}
         players={players}
         scene={scene}
+        library={library}
         sessionToken={session.sessionToken}
         theme={theme}
         onToggleTheme={toggleTheme}
