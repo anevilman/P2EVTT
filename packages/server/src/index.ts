@@ -2,8 +2,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Fastify from "fastify";
 import middie from "@fastify/middie";
+import multipart from "@fastify/multipart";
 import { createServer as createViteServer } from "vite";
 import { APP_NAME, APP_VERSION, DEFAULT_PORT } from "@p2evtt/shared";
+import { SceneStore } from "./scene";
 import { Table } from "./table";
 import { registerWs } from "./ws";
 
@@ -46,6 +48,12 @@ async function main() {
   const app = Fastify({ logger: true });
 
   const table = new Table();
+  const scene = new SceneStore(
+    path.join(args.dataDir, "media"),
+    path.resolve(__dirname, "../fixtures/maps/test-dungeon.jpg"),
+  );
+
+  await app.register(multipart, { limits: { fileSize: 12 * 1024 * 1024 } });
 
   app.get("/api/health", async () => ({
     ok: true,
@@ -59,7 +67,28 @@ async function main() {
     seated: table.list().length,
   }));
 
-  await registerWs(app, table);
+  app.get("/media/scene-bg", (_req, reply) => scene.sendFile(reply));
+
+  app.post("/api/scene/background", async (req, reply) => {
+    const token = String(req.headers["x-session-token"] ?? "");
+    const seat = table.getByToken(token);
+    if (!seat || seat.role !== "gm") {
+      return reply.code(403).send({ error: "Only the GM can change the map." });
+    }
+    const file = await req.file();
+    if (!file) return reply.code(400).send({ error: "Choose an image file." });
+    const bytes = await file.toBuffer();
+    try {
+      const next = await scene.saveUpload(bytes, file.mimetype);
+      table.broadcast({ type: "scene.updated", scene: next });
+      return next;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upload failed";
+      return reply.code(400).send({ error: message });
+    }
+  });
+
+  await registerWs(app, table, scene);
 
   await app.register(middie);
 
@@ -72,7 +101,7 @@ async function main() {
   });
   app.use((req, res, next) => {
     const url = req.url ?? "";
-    if (url.startsWith("/api") || url.startsWith("/ws")) {
+    if (url.startsWith("/api") || url.startsWith("/ws") || url.startsWith("/media")) {
       next();
       return;
     }

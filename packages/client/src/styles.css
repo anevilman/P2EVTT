@@ -228,12 +228,55 @@ h1 {
 
 .map {
   grid-area: map;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
   background: var(--bg-map);
   color: var(--fg-muted);
+}
+
+.map-viewport,
+.map-host {
+  width: 100%;
+  height: 100%;
+}
+
+.map-host canvas {
+  display: block;
+}
+
+.map-hint {
+  position: absolute;
+  left: 0.6rem;
+  bottom: 0.5rem;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+  pointer-events: none;
+  background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+}
+
+.map-upload {
+  margin-bottom: 1.2rem;
+}
+
+.file-btn {
+  cursor: pointer;
+  width: 100%;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.file-btn:hover {
+  border-color: var(--accent);
 }
 
 .right {

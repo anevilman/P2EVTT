@@ -8,6 +8,11 @@ export type Presence = {
   role: Role;
 };
 
+export type ScenePublic = {
+  backgroundUrl: string;
+  version: number;
+};
+
 export type ClientMsg =
   | {
       type: "hello";
@@ -19,9 +24,16 @@ export type ClientMsg =
   | { type: "hb.ping" };
 
 export type ServerMsg =
-  | { type: "hello.ok"; sessionToken: string; you: Presence; players: Presence[] }
+  | {
+      type: "hello.ok";
+      sessionToken: string;
+      you: Presence;
+      players: Presence[];
+      scene: ScenePublic;
+    }
   | { type: "hello.rejected"; reason: string }
   | { type: "presence"; players: Presence[] }
+  | { type: "scene.updated"; scene: ScenePublic }
   | { type: "hb.pong" }
   | { type: "error"; message: string };
 
@@ -65,17 +77,23 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
     return { type: "hello.rejected", reason };
   }
   if (msg.type === "hello.ok") {
-    const m = raw as { sessionToken?: unknown; you?: unknown; players?: unknown };
+    const m = raw as { sessionToken?: unknown; you?: unknown; players?: unknown; scene?: unknown };
     if (typeof m.sessionToken !== "string") return null;
     const you = parsePresence(m.you);
     const players = parsePresenceList(m.players);
-    if (!you || !players) return null;
-    return { type: "hello.ok", sessionToken: m.sessionToken, you, players };
+    const scene = parseScene(m.scene);
+    if (!you || !players || !scene) return null;
+    return { type: "hello.ok", sessionToken: m.sessionToken, you, players, scene };
   }
   if (msg.type === "presence") {
     const players = parsePresenceList((raw as { players?: unknown }).players);
     if (!players) return null;
     return { type: "presence", players };
+  }
+  if (msg.type === "scene.updated") {
+    const scene = parseScene((raw as { scene?: unknown }).scene);
+    if (!scene) return null;
+    return { type: "scene.updated", scene };
   }
   return null;
 }
@@ -97,4 +115,11 @@ function parsePresenceList(raw: unknown): Presence[] | null {
     out.push(p);
   }
   return out;
+}
+
+function parseScene(raw: unknown): ScenePublic | null {
+  if (!raw || typeof raw !== "object") return null;
+  const s = raw as { backgroundUrl?: unknown; version?: unknown };
+  if (typeof s.backgroundUrl !== "string" || typeof s.version !== "number") return null;
+  return { backgroundUrl: s.backgroundUrl, version: s.version };
 }

@@ -3,6 +3,7 @@ import {
   PROTOCOL_VERSION,
   type ClientMsg,
   type Presence,
+  type ScenePublic,
   type ServerMsg,
 } from "@p2evtt/shared";
 
@@ -10,11 +11,13 @@ export type TableSession = {
   you: Presence;
   players: Presence[];
   sessionToken: string;
+  scene: ScenePublic;
 };
 
 type Handlers = {
   onHello: (session: TableSession) => void;
   onPresence: (players: Presence[]) => void;
+  onScene: (scene: ScenePublic) => void;
   onRejected: (reason: string) => void;
   onError: (message: string) => void;
   onClosed: () => void;
@@ -60,11 +63,14 @@ export function connectTable(opts: {
         you: msg.you,
         players: msg.players,
         sessionToken: msg.sessionToken,
+        scene: msg.scene,
       });
     } else if (msg.type === "hello.rejected") {
       opts.handlers.onRejected(msg.reason);
     } else if (msg.type === "presence") {
       opts.handlers.onPresence(msg.players);
+    } else if (msg.type === "scene.updated") {
+      opts.handlers.onScene(msg.scene);
     } else if (msg.type === "error") {
       opts.handlers.onError(msg.message);
     }

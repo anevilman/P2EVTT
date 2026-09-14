@@ -1,15 +1,19 @@
-import type { Presence } from "@p2evtt/shared";
+import type { Presence, ScenePublic } from "@p2evtt/shared";
+import { MapViewport } from "../game/MapViewport";
 import type { Theme } from "../theme";
+import { MapUpload } from "./MapUpload";
 import { ThemeToggle } from "./ThemeToggle";
 
 type Props = {
   you: Presence;
   players: Presence[];
+  scene: ScenePublic;
+  sessionToken: string;
   theme: Theme;
   onToggleTheme: () => void;
 };
 
-export function GmShell({ you, players, theme, onToggleTheme }: Props) {
+export function GmShell({ you, players, scene, sessionToken, theme, onToggleTheme }: Props) {
   return (
     <div className="shell gm">
       <header className="topbar">
@@ -22,12 +26,12 @@ export function GmShell({ you, players, theme, onToggleTheme }: Props) {
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </header>
       <aside className="left">
+        <MapUpload sessionToken={sessionToken} />
         <h2>Library</h2>
-        <p className="placeholder">Token library and scenes land in a later phase.</p>
+        <p className="placeholder">Token library comes next.</p>
       </aside>
       <section className="map">
-        <p>Map</p>
-        <p className="placeholder">Background, grid, and tokens come next.</p>
+        <MapViewport backgroundUrl={scene.backgroundUrl} />
       </section>
       <aside className="right">
         <h2>Inspector</h2>

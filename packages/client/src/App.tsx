@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { Presence } from "@p2evtt/shared";
+import type { Presence, ScenePublic } from "@p2evtt/shared";
 import { connectTable, type TableSession } from "./net/socket";
 import type { ClientMsg } from "@p2evtt/shared";
 import {
@@ -21,6 +21,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<TableSession | null>(null);
   const [players, setPlayers] = useState<Presence[]>([]);
+  const [scene, setScene] = useState<ScenePublic | null>(null);
   const { theme, toggle: toggleTheme } = useTheme();
 
   const join = (displayName: string, wantGm: boolean) => {
@@ -38,9 +39,11 @@ export function App() {
           saveSessionToken(next.sessionToken);
           setSession(next);
           setPlayers(next.players);
+          setScene(next.scene);
           setBusy(false);
         },
         onPresence: (list) => setPlayers(list),
+        onScene: (next) => setScene(next),
         onRejected: (reason) => {
           conn.current?.close();
           conn.current = null;
@@ -56,21 +59,24 @@ export function App() {
     });
   };
 
-  if (session?.you.role === "gm") {
+  if (session?.you.role === "gm" && scene) {
     return (
       <GmShell
         you={session.you}
         players={players}
+        scene={scene}
+        sessionToken={session.sessionToken}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
     );
   }
-  if (session?.you.role === "player") {
+  if (session?.you.role === "player" && scene) {
     return (
       <PlayerShell
         you={session.you}
         players={players}
+        scene={scene}
         theme={theme}
         onToggleTheme={toggleTheme}
       />

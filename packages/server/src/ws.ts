@@ -1,9 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import websocket from "@fastify/websocket";
 import { parseClientMsg, PROTOCOL_VERSION } from "@p2evtt/shared";
+import type { SceneStore } from "./scene";
 import { Table } from "./table";
 
-export async function registerWs(app: FastifyInstance, table: Table): Promise<void> {
+export async function registerWs(
+  app: FastifyInstance,
+  table: Table,
+  scene: SceneStore,
+): Promise<void> {
   await app.register(websocket);
 
   app.get("/ws", { websocket: true }, (socket) => {
@@ -56,6 +61,7 @@ export async function registerWs(app: FastifyInstance, table: Table): Promise<vo
               role: result.seat.role,
             },
             players,
+            scene: scene.toPublic(),
           }),
         );
         table.broadcast({ type: "presence", players }, socket);

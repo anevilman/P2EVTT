@@ -1,15 +1,17 @@
-import type { Presence } from "@p2evtt/shared";
+import type { Presence, ScenePublic } from "@p2evtt/shared";
+import { MapViewport } from "../game/MapViewport";
 import type { Theme } from "../theme";
 import { ThemeToggle } from "./ThemeToggle";
 
 type Props = {
   you: Presence;
   players: Presence[];
+  scene: ScenePublic;
   theme: Theme;
   onToggleTheme: () => void;
 };
 
-export function PlayerShell({ you, players, theme, onToggleTheme }: Props) {
+export function PlayerShell({ you, players, scene, theme, onToggleTheme }: Props) {
   return (
     <div className="shell player">
       <header className="topbar">
@@ -29,8 +31,7 @@ export function PlayerShell({ you, players, theme, onToggleTheme }: Props) {
         </ul>
       </aside>
       <section className="map">
-        <p>Map</p>
-        <p className="placeholder">Your view of the table — no GM tools here.</p>
+        <MapViewport backgroundUrl={scene.backgroundUrl} />
       </section>
       <aside className="right">
         <h2>My sheet</h2>
