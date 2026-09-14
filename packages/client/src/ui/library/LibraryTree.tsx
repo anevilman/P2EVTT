@@ -25,14 +25,38 @@ type Props<T extends TreeItem> = {
   onCancelRename: () => void;
   onDeleteFolder: (id: string) => void;
   onDeleteItem: (id: string) => void;
+  onMoveItem?: (itemId: string, folderId: string | null) => void;
   itemDeleteDisabled?: boolean;
   renderItemBadge?: (item: T) => string | null;
 };
 
+const ITEM_DRAG = "text/plain";
+const ITEM_PREFIX = "p2evtt-item:";
+
 export function LibraryTree<T extends TreeItem>(props: Props<T>) {
+  const rootSelected = props.selection.kind === "root";
   return (
     <ul className="lib-tree">
-      {renderLevel(null, 0, props)}
+      <li>
+        <TreeRow
+          depth={0}
+          selected={rootSelected}
+          live={false}
+          editing={false}
+          draft=""
+          name="Library"
+          dropFolderId={null}
+          onDraft={props.onDraft}
+          onClick={() => props.onSelect({ kind: "root" })}
+          onStartRename={() => undefined}
+          onCommitRename={() => undefined}
+          onCancelRename={props.onCancelRename}
+          onDelete={() => undefined}
+          hideDelete
+          onMoveItem={props.onMoveItem}
+        />
+        <ul className="lib-tree">{renderLevel(null, 1, props)}</ul>
+      </li>
     </ul>
   );
 }
@@ -59,12 +83,14 @@ function renderLevel<T extends TreeItem>(parentId: string | null, depth: number,
               draft={props.draft}
               name={folder.name}
               labelPrefix="▸"
+              dropFolderId={folder.id}
               onDraft={props.onDraft}
               onClick={() => props.onSelect({ kind: "folder", id: folder.id })}
               onStartRename={() => props.onStartRename(folder.id, folder.name)}
               onCommitRename={() => props.onCommitRename(folder.id)}
               onCancelRename={props.onCancelRename}
               onDelete={() => props.onDeleteFolder(folder.id)}
+              onMoveItem={props.onMoveItem}
             />
             <ul className="lib-tree">{renderLevel(folder.id, depth + 1, props)}</ul>
           </li>
@@ -91,6 +117,8 @@ function renderLevel<T extends TreeItem>(parentId: string | null, depth: number,
               onCancelRename={props.onCancelRename}
               onDelete={() => props.onDeleteItem(item.id)}
               deleteDisabled={props.itemDeleteDisabled}
+              draggableId={item.id}
+              onMoveItem={props.onMoveItem}
             />
           </li>
         );
@@ -115,6 +143,10 @@ type RowProps = {
   onCancelRename: () => void;
   onDelete: () => void;
   deleteDisabled?: boolean;
+  hideDelete?: boolean;
+  draggableId?: string;
+  dropFolderId?: string | null;
+  onMoveItem?: (itemId: string, folderId: string | null) => void;
 };
 
 function TreeRow(props: RowProps) {
@@ -126,8 +158,31 @@ function TreeRow(props: RowProps) {
     .filter(Boolean)
     .join(" ");
 
+  const canDrop = props.onMoveItem && props.dropFolderId !== undefined;
+
   return (
-    <div className={className} style={{ paddingLeft: `${0.35 + props.depth * 0.85}rem` }}>
+    <div
+      className={className}
+      style={{ paddingLeft: `${0.35 + props.depth * 0.85}rem` }}
+      onDragOver={
+        canDrop
+          ? (e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            }
+          : undefined
+      }
+      onDrop={
+        canDrop
+          ? (e) => {
+              e.preventDefault();
+              const raw = e.dataTransfer.getData(ITEM_DRAG);
+              const itemId = raw.startsWith(ITEM_PREFIX) ? raw.slice(ITEM_PREFIX.length) : "";
+              if (itemId) props.onMoveItem?.(itemId, props.dropFolderId ?? null);
+            }
+          : undefined
+      }
+    >
       {props.editing ? (
         <input
           className="scene-rename"
@@ -145,6 +200,15 @@ function TreeRow(props: RowProps) {
         <button
           type="button"
           className="scene-name"
+          draggable={Boolean(props.draggableId)}
+          onDragStart={
+            props.draggableId
+              ? (e) => {
+                  e.dataTransfer.setData(ITEM_DRAG, `${ITEM_PREFIX}${props.draggableId}`);
+                  e.dataTransfer.effectAllowed = "move";
+                }
+              : undefined
+          }
           onClick={props.onClick}
           onDoubleClick={props.onStartRename}
         >
@@ -153,15 +217,17 @@ function TreeRow(props: RowProps) {
           {props.badge ? <span className="lib-badge">{props.badge}</span> : null}
         </button>
       )}
-      <button
-        type="button"
-        className="scene-x"
-        title="Delete"
-        disabled={props.deleteDisabled}
-        onClick={props.onDelete}
-      >
-        ×
-      </button>
+      {props.hideDelete ? null : (
+        <button
+          type="button"
+          className="scene-x"
+          title="Delete"
+          disabled={props.deleteDisabled}
+          onClick={props.onDelete}
+        >
+          ×
+        </button>
+      )}
     </div>
   );
 }

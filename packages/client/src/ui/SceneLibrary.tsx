@@ -12,6 +12,20 @@ type Props = {
   onSelect: (selection: Selection) => void;
 };
 
+function folderPath(folders: LibraryFolder[], id: string): string {
+  const parts: string[] = [];
+  let current: string | null = id;
+  const seen = new Set<string>();
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const folder = folders.find((f) => f.id === current);
+    if (!folder) break;
+    parts.unshift(folder.name);
+    current = folder.parentId;
+  }
+  return parts.join(" / ");
+}
+
 function targetFolderId(selection: Selection, library: SceneSummary[]): string | null {
   if (selection.kind === "folder") return selection.id;
   if (selection.kind === "item") {
@@ -91,6 +105,16 @@ export function SceneLibrary({
             );
           }}
           itemDeleteDisabled={library.length < 2}
+          onMoveItem={(itemId, nextFolderId) => {
+            const current = library.find((s) => s.id === itemId);
+            if (!current || current.folderId === nextFolderId) return;
+            void run("Moving…", () =>
+              gmFetch(`/api/scenes/${itemId}`, sessionToken, {
+                method: "PATCH",
+                body: JSON.stringify({ folderId: nextFolderId }),
+              }).then(() => undefined),
+            );
+          }}
         />
       </div>
       <div className="lib-actions">
@@ -125,6 +149,34 @@ export function SceneLibrary({
           New scene
         </button>
       </div>
+      {selectedScene ? (
+        <label className="folder-move">
+          Folder
+          <select
+            value={selectedScene.folderId ?? ""}
+            onChange={(e) => {
+              const next = e.target.value === "" ? null : e.target.value;
+              if (next === selectedScene.folderId) return;
+              void run("Moving…", () =>
+                gmFetch(`/api/scenes/${selectedScene.id}`, sessionToken, {
+                  method: "PATCH",
+                  body: JSON.stringify({ folderId: next }),
+                }).then(() => undefined),
+              );
+            }}
+          >
+            <option value="">Library root</option>
+            {folders
+              .slice()
+              .sort((a, b) => folderPath(folders, a.id).localeCompare(folderPath(folders, b.id)))
+              .map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  {folderPath(folders, folder.id)}
+                </option>
+              ))}
+          </select>
+        </label>
+      ) : null}
       {selectedScene && selectedScene.id !== live.id ? (
         <button
           type="button"

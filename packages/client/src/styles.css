@@ -352,6 +352,25 @@ h1 {
   border-color: var(--accent);
 }
 
+.folder-move {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.4rem 0 0.15rem;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.folder-move select {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.45rem;
+}
+
 .map-edit-banner {
   position: absolute;
   top: 0.5rem;
