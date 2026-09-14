@@ -1,46 +1,71 @@
-import { useEffect, useState } from "react";
-import { APP_NAME, APP_VERSION } from "@p2evtt/shared";
+import { useRef, useState } from "react";
+import type { Presence } from "@p2evtt/shared";
+import { connectTable, type TableSession } from "./net/socket";
+import type { ClientMsg } from "@p2evtt/shared";
+import {
+  clearSessionToken,
+  loadDisplayName,
+  loadSessionToken,
+  saveDisplayName,
+  saveSessionToken,
+} from "./storage";
+import { GmShell } from "./ui/GmShell";
+import { JoinScreen } from "./ui/JoinScreen";
+import { PlayerShell } from "./ui/PlayerShell";
 
-type Health = {
-  ok: boolean;
-  name: string;
-  version: string;
-};
+type Conn = { send: (msg: ClientMsg) => void; close: () => void };
 
 export function App() {
-  const [health, setHealth] = useState<Health | null>(null);
+  const conn = useRef<Conn | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [session, setSession] = useState<TableSession | null>(null);
+  const [players, setPlayers] = useState<Presence[]>([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/health")
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`health ${res.status}`);
-        return (await res.json()) as Health;
-      })
-      .then((data) => {
-        if (!cancelled) setHealth(data);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const join = (displayName: string) => {
+    if (displayName.length < 1) return;
+    saveDisplayName(displayName);
+    setBusy(true);
+    setError(null);
+    conn.current?.close();
+    conn.current = connectTable({
+      displayName,
+      sessionToken: loadSessionToken(),
+      handlers: {
+        onHello: (next) => {
+          saveSessionToken(next.sessionToken);
+          setSession(next);
+          setPlayers(next.players);
+          setBusy(false);
+        },
+        onPresence: (list) => setPlayers(list),
+        onRejected: (reason) => {
+          clearSessionToken();
+          setBusy(false);
+          setError(reason);
+        },
+        onError: (message) => setError(message),
+        onClosed: () => {
+          setSession(null);
+          setBusy(false);
+        },
+      },
+    });
+  };
+
+  if (session?.you.role === "gm") {
+    return <GmShell you={session.you} players={players} />;
+  }
+  if (session?.you.role === "player") {
+    return <PlayerShell you={session.you} players={players} />;
+  }
 
   return (
-    <main className="splash">
-      <h1>{APP_NAME}</h1>
-      <p className="tagline">Pathfinder 2e virtual tabletop — local table</p>
-      <p className="meta">client {APP_VERSION}</p>
-      {health ? (
-        <p className="ok">server {health.version} · ok</p>
-      ) : error ? (
-        <p className="err">server unreachable: {error}</p>
-      ) : (
-        <p className="meta">checking server…</p>
-      )}
-    </main>
+    <JoinScreen
+      defaultName={loadDisplayName()}
+      busy={busy}
+      error={error}
+      onJoin={join}
+    />
   );
 }

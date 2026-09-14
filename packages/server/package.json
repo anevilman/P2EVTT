@@ -9,12 +9,15 @@
   },
   "dependencies": {
     "@fastify/middie": "^9.0.3",
+    "@fastify/websocket": "^11.3.0",
     "@p2evtt/shared": "workspace:*",
     "fastify": "^5.3.2",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.19.4",
     "typescript": "^5.8.2"
   }

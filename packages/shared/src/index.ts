@@ -1,4 +1,13 @@
 export const APP_NAME = "P2EVTT";
-export const APP_VERSION = "0.1.0";
-export const PROTOCOL_VERSION = 1;
+export const APP_VERSION = "0.2.0";
 export const DEFAULT_PORT = 7788;
+
+export {
+  PROTOCOL_VERSION,
+  parseClientMsg,
+  parseServerMsg,
+  type Role,
+  type Presence,
+  type ClientMsg,
+  type ServerMsg,
+} from "./protocol";

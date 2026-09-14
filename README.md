@@ -16,7 +16,12 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://127.0.0.1:7788](http://127.0.0.1:7788).
+Open [http://127.0.0.1:7788](http://127.0.0.1:7788) in a browser. Enter a name and sit down.
+
+- The **host’s first browser tab** is the GM.
+- Extra tabs on the same machine, or friends opening the URL, are players.
+- Players do not install anything. They just use a browser.
+- Display name and session are kept in the browser’s localStorage.
 
 Friends on the same network:
 

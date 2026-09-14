@@ -4,6 +4,8 @@ import Fastify from "fastify";
 import middie from "@fastify/middie";
 import { createServer as createViteServer } from "vite";
 import { APP_NAME, APP_VERSION, DEFAULT_PORT } from "@p2evtt/shared";
+import { Table } from "./table";
+import { registerWs } from "./ws";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,6 +50,9 @@ async function main() {
     name: APP_NAME,
     version: APP_VERSION,
   }));
+
+  const table = new Table();
+  await registerWs(app, table);
 
   await app.register(middie);
 
