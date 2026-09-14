@@ -22,6 +22,7 @@ export function App() {
         sessionToken={table.session.sessionToken}
         theme={table.theme}
         onToggleTheme={table.toggleTheme}
+        onStatSnapshot={(library, folders) => table.applyStats(library, folders)}
       />
     );
   }

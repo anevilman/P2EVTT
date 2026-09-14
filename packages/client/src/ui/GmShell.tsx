@@ -43,6 +43,7 @@ type Props = {
   sessionToken: string;
   theme: Theme;
   onToggleTheme: () => void;
+  onStatSnapshot: (library: StatBlockEntry[], folders: LibraryFolder[]) => void;
 };
 
 export function GmShell({
@@ -59,6 +60,7 @@ export function GmShell({
   sessionToken,
   theme,
   onToggleTheme,
+  onStatSnapshot,
 }: Props) {
   const [selection, setSelection] = useState<Selection>({ kind: "item", id: scene.id });
   const [tokenSel, setTokenSel] = useState<Selection>({ kind: "root" });
@@ -190,6 +192,7 @@ export function GmShell({
                   folders={statFolders}
                   selection={statSel}
                   onSelect={setStatSel}
+                  onSnapshot={onStatSnapshot}
                 />
               ),
             },

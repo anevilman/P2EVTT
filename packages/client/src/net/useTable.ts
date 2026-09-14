@@ -111,5 +111,9 @@ export function useTable() {
     toggleTheme,
     defaultName: loadDisplayName(),
     join,
+    applyStats: (nextLibrary: StatBlockEntry[], nextFolders: LibraryFolder[]) => {
+      setStatLibrary(nextLibrary);
+      setStatFolders(nextFolders);
+    },
   };
 }

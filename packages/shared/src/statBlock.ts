@@ -147,11 +147,10 @@ export function parseStatBlockEntry(raw: unknown): StatBlockEntry | null {
   if (!raw || typeof raw !== "object") return null;
   const e = raw as { id?: unknown; name?: unknown; folderId?: unknown; data?: unknown };
   if (typeof e.id !== "string" || typeof e.name !== "string") return null;
-  if (e.folderId !== null && typeof e.folderId !== "string") return null;
   return {
     id: e.id,
     name: e.name,
-    folderId: e.folderId,
+    folderId: typeof e.folderId === "string" ? e.folderId : null,
     data: parseStatBlockData(e.data),
   };
 }

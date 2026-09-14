@@ -278,8 +278,8 @@ function parseFolders(raw: unknown): LibraryFolder[] | null {
     if (!item || typeof item !== "object") return null;
     const f = item as { id?: unknown; name?: unknown; parentId?: unknown };
     if (typeof f.id !== "string" || typeof f.name !== "string") return null;
-    if (f.parentId !== null && typeof f.parentId !== "string") return null;
-    return { id: f.id, name: f.name, parentId: f.parentId };
+    const parentId = typeof f.parentId === "string" ? f.parentId : null;
+    return { id: f.id, name: f.name, parentId };
   });
 }
 
