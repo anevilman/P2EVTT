@@ -21,7 +21,7 @@ Open [http://127.0.0.1:7788](http://127.0.0.1:7788) in a browser. Enter a name, 
 - Players can sit before anyone claims GM.
 - The first person to click **I'm the GM** gets that seat; everyone else sees it taken.
 - Players do not install anything. They just use a browser.
-- Display name and session are kept in the browser’s localStorage.
+- Display name is kept in localStorage (shared). Session is per tab (sessionStorage), so a GM can open a second tab as a player / DMPC.
 
 Friends on the same network:
 

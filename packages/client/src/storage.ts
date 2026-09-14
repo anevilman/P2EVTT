@@ -17,9 +17,11 @@ export function saveDisplayName(name: string): void {
   }
 }
 
+/** Per-tab. localStorage is shared across tabs and was stealing the GM seat. */
 export function loadSessionToken(): string | null {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+    return sessionStorage.getItem(TOKEN_KEY);
   } catch {
     return null;
   }
@@ -27,7 +29,8 @@ export function loadSessionToken(): string | null {
 
 export function saveSessionToken(token: string): void {
   try {
-    localStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.setItem(TOKEN_KEY, token);
+    localStorage.removeItem(TOKEN_KEY);
   } catch {
     /* private mode */
   }
@@ -35,6 +38,7 @@ export function saveSessionToken(token: string): void {
 
 export function clearSessionToken(): void {
   try {
+    sessionStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(TOKEN_KEY);
   } catch {
     /* private mode */
