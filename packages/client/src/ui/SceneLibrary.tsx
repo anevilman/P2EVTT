@@ -8,11 +8,12 @@ type Props = {
 };
 
 async function gmFetch(path: string, sessionToken: string, init?: RequestInit) {
+  const jsonBody = typeof init?.body === "string";
   const res = await fetch(path, {
     ...init,
     headers: {
       "X-Session-Token": sessionToken,
-      ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+      ...(jsonBody ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
   });
