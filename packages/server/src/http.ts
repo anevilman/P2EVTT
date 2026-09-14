@@ -29,6 +29,20 @@ export function optionalId(value: unknown): string | null | undefined {
   return String(value);
 }
 
+export function requireSeat(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  table: Table,
+): Seat | null {
+  const token = String(req.headers["x-session-token"] ?? "");
+  const seat = table.getByToken(token);
+  if (!seat) {
+    reply.code(401).send({ error: "Sit at the table first." });
+    return null;
+  }
+  return seat;
+}
+
 export function gmHandler(
   table: Table,
   fallback: string,

@@ -1,5 +1,6 @@
 import type { PlacedToken, Presence, ScenePublic, TokenPrototype } from "@p2evtt/shared";
 import { MapViewport, toMapTokens } from "../game/MapViewport";
+import { gmFetch } from "../net/gmApi";
 import type { Theme } from "../theme";
 import { Dock } from "./Dock";
 import { PartyIcon, SheetIcon } from "./dockIcons";
@@ -12,6 +13,7 @@ type Props = {
   scene: ScenePublic;
   tokenLibrary: TokenPrototype[];
   tokens: PlacedToken[];
+  sessionToken: string;
   theme: Theme;
   onToggleTheme: () => void;
 };
@@ -22,6 +24,7 @@ export function PlayerShell({
   scene,
   tokenLibrary = [],
   tokens = [],
+  sessionToken,
   theme,
   onToggleTheme,
 }: Props) {
@@ -66,8 +69,14 @@ export function PlayerShell({
         <MapViewport
           key={scene.id}
           backgroundUrl={scene.backgroundUrl}
-          tokens={toMapTokens(tokens, tokenLibrary, scene.id)}
+          tokens={toMapTokens(tokens, tokenLibrary, scene.id, you.id, false)}
           grid={scene.grid}
+          onMoveToken={(id, x, y) => {
+            void gmFetch(`/api/placed/${id}`, sessionToken, {
+              method: "PATCH",
+              body: JSON.stringify({ x, y }),
+            });
+          }}
         />
       }
     />

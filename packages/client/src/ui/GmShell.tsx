@@ -150,6 +150,7 @@ export function GmShell({
                       token={selectedPlaced}
                       name={tokenLibrary.find((p) => p.id === selectedPlaced.prototypeId)?.name ?? "Token"}
                       sessionToken={sessionToken}
+                      players={players}
                     />
                   ) : (
                     <p className="placeholder">Select a token on the map.</p>
@@ -170,7 +171,7 @@ export function GmShell({
           <MapViewport
             key={selectedScene.id}
             backgroundUrl={selectedScene.backgroundUrl}
-            tokens={toMapTokens(tokens, tokenLibrary, selectedScene.id)}
+            tokens={toMapTokens(tokens, tokenLibrary, selectedScene.id, you.id, true)}
             grid={selectedScene.grid}
             placeSpan={selectedProto ? tokenSpan(selectedProto.size) : 1}
             canEdit
@@ -197,11 +198,18 @@ function PlacedInspect({
   token,
   name,
   sessionToken,
+  players,
 }: {
   token: PlacedToken;
   name: string;
   sessionToken: string;
+  players: Presence[];
 }) {
+  const seatedPlayers = players.filter((p) => p.role === "player");
+  const missing =
+    token.controllerId && !players.some((p) => p.id === token.controllerId)
+      ? token.controllerId
+      : null;
   return (
     <div>
       <p>
@@ -210,6 +218,28 @@ function PlacedInspect({
       <p className="meta">
         {Math.round(token.x)}, {Math.round(token.y)}
       </p>
+      <label className="folder-move">
+        Controlled by
+        <select
+          value={token.controllerId ?? ""}
+          onChange={(e) => {
+            void gmFetch(`/api/placed/${token.id}`, sessionToken, {
+              method: "PATCH",
+              body: JSON.stringify({ controllerId: e.target.value === "" ? null : e.target.value }),
+            });
+          }}
+        >
+          <option value="">Unassigned (GM only)</option>
+          {seatedPlayers.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.displayName}
+            </option>
+          ))}
+          {missing ? (
+            <option value={missing}>Offline player</option>
+          ) : null}
+        </select>
+      </label>
       <label className="folder-move">
         Size
         <select

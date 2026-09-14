@@ -14,6 +14,7 @@ export type MapToken = PlacedToken & {
   name: string;
   imageUrl: string | null;
   sizePx: number;
+  movable: boolean;
 };
 
 type Props = {
@@ -176,9 +177,10 @@ export function MapViewport({
         app.stage.on("pointerdown", (e) => {
           const target = e.target;
           if (target instanceof Sprite && target !== bg && target.label) {
-            if (!canEditRef.current) return;
-            dragToken = target;
-            callbacks.current.onSelectToken?.(String(target.label));
+            const id = String(target.label);
+            callbacks.current.onSelectToken?.(id);
+            const tok = tokensRef.current.find((t) => t.id === id);
+            if (tok?.movable) dragToken = target;
             return;
           }
           if (placeModeRef.current && world) {
@@ -283,7 +285,7 @@ export function MapViewport({
         sprite.anchor.set(0.5);
         sprite.tint = token.imageUrl ? 0xffffff : 0x3b82f6;
         sprite.eventMode = "static";
-        sprite.cursor = canEdit ? "pointer" : "default";
+        sprite.cursor = token.movable ? "pointer" : "default";
         sprite.label = token.id;
         layer.addChild(sprite);
         sprites.set(token.id, sprite);
@@ -308,6 +310,7 @@ export function MapViewport({
         sprite.width = token.sizePx;
         sprite.height = token.sizePx;
       }
+      sprite.cursor = token.movable ? "pointer" : "default";
       sprite.alpha = token.id === selectedTokenId ? 1 : 0.95;
     }
 
@@ -362,6 +365,8 @@ export function toMapTokens(
   placed: PlacedToken[],
   prototypes: TokenPrototype[],
   sceneId: string,
+  youId: string,
+  isGm: boolean,
 ): MapToken[] {
   return placed
     .filter((t) => t.sceneId === sceneId)
@@ -372,6 +377,7 @@ export function toMapTokens(
         name: proto?.name ?? "Token",
         imageUrl: proto?.imageUrl ?? null,
         sizePx: TOKEN_PX[t.size ?? proto?.size ?? "medium"],
+        movable: isGm || t.controllerId === youId,
       };
     });
 }

@@ -34,6 +34,7 @@ export class Table {
     displayName: string;
     wantGm: boolean;
     sessionToken?: string;
+    playerId?: string;
     socket: WebSocket;
   }): { seat: Seat } | { reject: string } {
     const name = opts.displayName.trim();
@@ -68,7 +69,7 @@ export class Table {
 
     const sessionToken = randomUUID();
     const seat: Seat = {
-      id: randomUUID(),
+      id: this.stableId(opts.playerId),
       displayName: uniqueName(name, this.seats),
       role: opts.wantGm ? "gm" : "player",
       sessionToken,
@@ -87,6 +88,14 @@ export class Table {
       }
     }
     return false;
+  }
+
+  private stableId(playerId: string | undefined): string {
+    if (!playerId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(playerId)) {
+      return randomUUID();
+    }
+    const taken = [...this.seats.values()].some((s) => s.id === playerId);
+    return taken ? randomUUID() : playerId;
   }
 
   broadcast(msg: unknown, except?: WebSocket): void {

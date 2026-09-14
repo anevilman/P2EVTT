@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { APP_NAME, APP_VERSION, parseGrid } from "@p2evtt/shared";
-import { gmHandler, idParam, optionalId } from "./http";
+import { errorMessage, gmHandler, idParam, optionalId, requireSeat } from "./http";
 import { TOKEN_SIZES, type TokenSize } from "@p2evtt/shared";
 import type { SceneSnapshot, SceneStore } from "./scene";
 import type { Table } from "./table";
@@ -191,11 +191,22 @@ export async function registerRoutes(
     }),
   );
 
-  app.patch(
-    "/api/placed/:id",
-    gmHandler(table, "Could not update token", async (req) => {
-      const body = (req.body as { x?: unknown; y?: unknown; size?: unknown } | null) ?? {};
-      const patch: { x?: number; y?: number; size?: TokenSize } = {};
+  app.patch("/api/placed/:id", async (req, reply) => {
+    const seat = requireSeat(req, reply, table);
+    if (!seat) return;
+    const placed = tokens.getPlaced(idParam(req));
+    if (!placed) return reply.code(404).send({ error: "Unknown token." });
+    const body = (req.body as { x?: unknown; y?: unknown; size?: unknown; controllerId?: unknown } | null) ?? {};
+    const isGm = seat.role === "gm";
+    const isController = placed.controllerId === seat.id;
+    if (!isGm && !isController) {
+      return reply.code(403).send({ error: "That token is not yours." });
+    }
+    if (!isGm && (body.size !== undefined || body.controllerId !== undefined)) {
+      return reply.code(403).send({ error: "Only the GM can change size or control." });
+    }
+    try {
+      const patch: { x?: number; y?: number; size?: TokenSize; controllerId?: string | null } = {};
       if (body.x !== undefined) {
         const x = Number(body.x);
         if (!Number.isFinite(x)) throw new Error("x must be a number.");
@@ -206,10 +217,13 @@ export async function registerRoutes(
         if (!Number.isFinite(y)) throw new Error("y must be a number.");
         patch.y = y;
       }
-      if (body.size !== undefined) patch.size = asSize(body.size);
+      if (isGm && body.size !== undefined) patch.size = asSize(body.size);
+      if (isGm && body.controllerId !== undefined) patch.controllerId = optionalId(body.controllerId) ?? null;
       return publishTokens(table, await tokens.updatePlaced(idParam(req), patch));
-    }),
-  );
+    } catch (err) {
+      return reply.code(400).send({ error: errorMessage(err, "Could not update token") });
+    }
+  });
 
   app.delete(
     "/api/placed/:id",

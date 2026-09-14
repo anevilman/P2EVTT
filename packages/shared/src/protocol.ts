@@ -49,6 +49,7 @@ export type PlacedToken = {
   x: number;
   y: number;
   size: TokenSize;
+  controllerId: string | null;
 };
 
 export type TokenSnapshot = {
@@ -64,6 +65,7 @@ export type ClientMsg =
       displayName: string;
       wantGm: boolean;
       sessionToken?: string;
+      playerId?: string;
     }
   | { type: "hb.ping" };
 
@@ -107,16 +109,19 @@ export function parseClientMsg(raw: unknown): ClientMsg | null {
       displayName?: unknown;
       wantGm?: unknown;
       sessionToken?: unknown;
+      playerId?: unknown;
     };
     if (typeof m.protocolVersion !== "number" || typeof m.displayName !== "string") return null;
     if (m.wantGm !== undefined && typeof m.wantGm !== "boolean") return null;
     if (m.sessionToken !== undefined && typeof m.sessionToken !== "string") return null;
+    if (m.playerId !== undefined && typeof m.playerId !== "string") return null;
     return {
       type: "hello",
       protocolVersion: m.protocolVersion,
       displayName: m.displayName,
       wantGm: m.wantGm === true,
       sessionToken: m.sessionToken,
+      playerId: m.playerId,
     };
   }
   return null;
@@ -292,6 +297,7 @@ function parsePlacedToken(raw: unknown): PlacedToken | null {
     x?: unknown;
     y?: unknown;
     size?: unknown;
+    controllerId?: unknown;
   };
   const size = parseTokenSize(t.size);
   if (
@@ -304,7 +310,18 @@ function parsePlacedToken(raw: unknown): PlacedToken | null {
   ) {
     return null;
   }
-  return { id: t.id, prototypeId: t.prototypeId, sceneId: t.sceneId, x: t.x, y: t.y, size };
+  if (t.controllerId !== null && t.controllerId !== undefined && typeof t.controllerId !== "string") {
+    return null;
+  }
+  return {
+    id: t.id,
+    prototypeId: t.prototypeId,
+    sceneId: t.sceneId,
+    x: t.x,
+    y: t.y,
+    size,
+    controllerId: typeof t.controllerId === "string" ? t.controllerId : null,
+  };
 }
 
 function parseTokenSnapshot(raw: unknown): TokenSnapshot | null {

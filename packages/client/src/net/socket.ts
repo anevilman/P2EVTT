@@ -37,6 +37,7 @@ export function connectTable(opts: {
   displayName: string;
   wantGm: boolean;
   sessionToken?: string | null;
+  playerId?: string | null;
   handlers: Handlers;
 }): { send: (msg: ClientMsg) => void; close: () => void } {
   const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -54,6 +55,7 @@ export function connectTable(opts: {
       displayName: opts.displayName,
       wantGm: opts.wantGm,
       sessionToken: opts.sessionToken ?? undefined,
+      playerId: opts.playerId ?? undefined,
     });
     heartbeat = window.setInterval(() => send({ type: "hb.ping" }), 15_000);
   });

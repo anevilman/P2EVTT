@@ -49,6 +49,7 @@ export async function registerWs(
           displayName: msg.displayName,
           wantGm: msg.wantGm,
           sessionToken: msg.sessionToken,
+          playerId: msg.playerId,
           socket,
         });
         if ("reject" in result) {

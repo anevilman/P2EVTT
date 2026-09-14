@@ -31,6 +31,7 @@ export function App() {
         scene={table.scene}
         tokenLibrary={table.tokenLibrary}
         tokens={table.tokens}
+        sessionToken={table.session.sessionToken}
         theme={table.theme}
         onToggleTheme={table.toggleTheme}
       />
