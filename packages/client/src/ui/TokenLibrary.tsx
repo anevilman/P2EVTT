@@ -69,8 +69,9 @@ export function TokenLibrary({
   };
 
   return (
-    <div className="scene-library">
+    <div className="scene-library token-library">
       <h2>Tokens</h2>
+      <div className="lib-scroll">
       <div className="lib-tree-wrap">
         <LibraryTree
           folders={folders}
@@ -207,6 +208,14 @@ export function TokenLibrary({
       ) : (
         <p className="meta">Select a token, then place it on the live or editing scene.</p>
       )}
+      </div>
+      <div className="token-preview">
+        {selected?.imageUrl ? (
+          <img src={selected.imageUrl} alt={selected.name} />
+        ) : (
+          <p className="meta">{selected ? "No art yet" : "Select a token"}</p>
+        )}
+      </div>
     </div>
   );
 }
