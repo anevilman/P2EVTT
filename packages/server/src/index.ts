@@ -8,6 +8,7 @@ import { parseArgs, repoRoot } from "./cli";
 import { registerRoutes } from "./routes";
 import { SceneStore } from "./scene";
 import { Table } from "./table";
+import { StatStore } from "./stats";
 import { TokenStore } from "./tokens";
 import { registerWs } from "./ws";
 
@@ -28,10 +29,12 @@ async function main() {
     path.join(repoRoot(), "packages/server/fixtures/tokens/adventurer.jpg"),
   );
   await tokens.load();
+  const stats = new StatStore(args.dataDir);
+  await stats.load();
 
   await app.register(multipart, { limits: { fileSize: 12 * 1024 * 1024 } });
-  await registerRoutes(app, table, scene, tokens);
-  await registerWs(app, table, scene, tokens);
+  await registerRoutes(app, table, scene, tokens, stats);
+  await registerWs(app, table, scene, tokens, stats);
   await app.register(middie);
 
   const clientRoot = path.join(repoRoot(), "packages/client");

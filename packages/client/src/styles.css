@@ -389,6 +389,65 @@ h1 {
   object-fit: contain;
 }
 
+.stat-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.stat-editor h3 {
+  margin: 0.4rem 0 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.stat-row {
+  display: flex;
+  gap: 0.35rem;
+  align-items: end;
+}
+
+.stat-row.six {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.stat-row label,
+.stat-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+}
+
+.stat-row .grow,
+.stat-editor .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.stat-editor input,
+.stat-editor textarea,
+.stat-strike input {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.3rem 0.4rem;
+}
+
+.stat-strike {
+  display: grid;
+  grid-template-columns: 1fr 4rem 1fr auto;
+  gap: 0.3rem;
+  align-items: center;
+}
+
 .lib-tree-wrap {
   flex: 1;
   min-height: 8rem;

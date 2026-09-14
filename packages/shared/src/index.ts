@@ -1,5 +1,5 @@
 export const APP_NAME = "P2EVTT";
-export const APP_VERSION = "0.7.0";
+export const APP_VERSION = "0.8.0";
 export const DEFAULT_PORT = 7788;
 
 export {
@@ -16,10 +16,22 @@ export {
   type TokenPrototype,
   type PlacedToken,
   type TokenSnapshot,
+  type StatSnapshot,
   type ClientMsg,
   type ServerMsg,
   TOKEN_SIZES,
 } from "./protocol";
+
+export {
+  emptyStatBlock,
+  cloneStatBlock,
+  parseStatBlockData,
+  parseStatBlockEntry,
+  type StatBlockData,
+  type StatBlockEntry,
+  type StrikeLine,
+  type SkillLine,
+} from "./statBlock";
 
 export {
   DEFAULT_GRID,

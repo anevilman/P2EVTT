@@ -17,6 +17,8 @@ export function App() {
         tokenLibrary={table.tokenLibrary}
         tokenFolders={table.tokenFolders}
         tokens={table.tokens}
+        statLibrary={table.statLibrary}
+        statFolders={table.statFolders}
         sessionToken={table.session.sessionToken}
         theme={table.theme}
         onToggleTheme={table.toggleTheme}

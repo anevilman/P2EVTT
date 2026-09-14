@@ -1,4 +1,10 @@
 import { parseGrid, type SceneGrid } from "./grid";
+import {
+  parseStatBlockData,
+  parseStatBlockEntry,
+  type StatBlockData,
+  type StatBlockEntry,
+} from "./statBlock";
 
 export type { SceneGrid } from "./grid";
 
@@ -41,6 +47,7 @@ export type TokenPrototype = {
   size: TokenSize;
   version: number;
   controlledBy: string | null;
+  statBlockId: string | null;
 };
 
 export type PlacedToken = {
@@ -51,12 +58,18 @@ export type PlacedToken = {
   y: number;
   size: TokenSize;
   controlledBy: string | null;
+  statBlock: StatBlockData | null;
 };
 
 export type TokenSnapshot = {
   tokenLibrary: TokenPrototype[];
   tokenFolders: LibraryFolder[];
   tokens: PlacedToken[];
+};
+
+export type StatSnapshot = {
+  statLibrary: StatBlockEntry[];
+  statFolders: LibraryFolder[];
 };
 
 export type ClientMsg =
@@ -81,6 +94,8 @@ export type ServerMsg =
       tokenLibrary: TokenPrototype[];
       tokenFolders: LibraryFolder[];
       tokens: PlacedToken[];
+      statLibrary: StatBlockEntry[];
+      statFolders: LibraryFolder[];
     }
   | { type: "hello.rejected"; reason: string }
   | { type: "presence"; players: Presence[] }
@@ -95,6 +110,11 @@ export type ServerMsg =
       tokenLibrary: TokenPrototype[];
       tokenFolders: LibraryFolder[];
       tokens: PlacedToken[];
+    }
+  | {
+      type: "stats.updated";
+      statLibrary: StatBlockEntry[];
+      statFolders: LibraryFolder[];
     }
   | { type: "hb.pong" }
   | { type: "error"; message: string };
@@ -149,6 +169,8 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
       tokenLibrary?: unknown;
       tokenFolders?: unknown;
       tokens?: unknown;
+      statLibrary?: unknown;
+      statFolders?: unknown;
     };
     if (typeof m.sessionToken !== "string") return null;
     const you = parsePresence(m.you);
@@ -157,7 +179,8 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
     const library = parseLibrary(m.library);
     const folders = parseFolders(m.folders);
     const tokens = parseTokenSnapshot(m);
-    if (!you || !players || !scene || !library || !folders || !tokens) return null;
+    const stats = parseStatSnapshot(m);
+    if (!you || !players || !scene || !library || !folders || !tokens || !stats) return null;
     return {
       type: "hello.ok",
       sessionToken: m.sessionToken,
@@ -167,6 +190,7 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
       library,
       folders,
       ...tokens,
+      ...stats,
     };
   }
   if (msg.type === "presence") {
@@ -186,6 +210,11 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
     const tokens = parseTokenSnapshot(raw);
     if (!tokens) return null;
     return { type: "tokens.updated", ...tokens };
+  }
+  if (msg.type === "stats.updated") {
+    const stats = parseStatSnapshot(raw);
+    if (!stats) return null;
+    return { type: "stats.updated", ...stats };
   }
   return null;
 }
@@ -269,6 +298,7 @@ function parseTokenPrototype(raw: unknown): TokenPrototype | null {
     size?: unknown;
     version?: unknown;
     controlledBy?: unknown;
+    statBlockId?: unknown;
   };
   const size = parseTokenSize(t.size);
   if (typeof t.id !== "string" || typeof t.name !== "string" || typeof t.version !== "number" || !size) {
@@ -279,6 +309,9 @@ function parseTokenPrototype(raw: unknown): TokenPrototype | null {
   if (t.controlledBy !== null && t.controlledBy !== undefined && typeof t.controlledBy !== "string") {
     return null;
   }
+  if (t.statBlockId !== null && t.statBlockId !== undefined && typeof t.statBlockId !== "string") {
+    return null;
+  }
   return {
     id: t.id,
     name: t.name,
@@ -287,6 +320,7 @@ function parseTokenPrototype(raw: unknown): TokenPrototype | null {
     size,
     version: t.version,
     controlledBy: typeof t.controlledBy === "string" && t.controlledBy.trim() ? t.controlledBy.trim() : null,
+    statBlockId: typeof t.statBlockId === "string" ? t.statBlockId : null,
   };
 }
 
@@ -301,6 +335,7 @@ function parsePlacedToken(raw: unknown): PlacedToken | null {
     size?: unknown;
     controlledBy?: unknown;
     controllerId?: unknown;
+    statBlock?: unknown;
   };
   const size = parseTokenSize(t.size);
   if (
@@ -327,7 +362,23 @@ function parsePlacedToken(raw: unknown): PlacedToken | null {
     y: t.y,
     size,
     controlledBy: name && name.length > 0 ? name : null,
+    statBlock: t.statBlock == null ? null : parseStatBlockData(t.statBlock),
   };
+}
+
+function parseStatSnapshot(raw: unknown): StatSnapshot | null {
+  if (!raw || typeof raw !== "object") return null;
+  const t = raw as { statLibrary?: unknown; statFolders?: unknown };
+  const statFolders = parseFolders(t.statFolders);
+  if (!statFolders) return null;
+  if (!Array.isArray(t.statLibrary)) return null;
+  const statLibrary: StatBlockEntry[] = [];
+  for (const item of t.statLibrary) {
+    const entry = parseStatBlockEntry(item);
+    if (!entry) return null;
+    statLibrary.push(entry);
+  }
+  return { statLibrary, statFolders };
 }
 
 function looksLikeId(value: string): boolean {

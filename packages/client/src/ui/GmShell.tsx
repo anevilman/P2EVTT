@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import {
   TOKEN_SIZES,
+  emptyStatBlock,
   tokenSpan,
   type LibraryFolder,
   type PlacedToken,
   type Presence,
   type ScenePublic,
   type SceneSummary,
+  type StatBlockEntry,
   type TokenPrototype,
   type TokenSize,
 } from "@p2evtt/shared";
@@ -16,7 +18,9 @@ import { gmFetch } from "../net/gmApi";
 import type { Theme } from "../theme";
 import { AssignedToSelect } from "./AssignedToSelect";
 import { Dock } from "./Dock";
-import { InspectIcon, ScenesIcon, TokensIcon } from "./dockIcons";
+import { InspectIcon, ScenesIcon, StatsIcon, TokensIcon } from "./dockIcons";
+import { StatBlockEditor } from "./StatBlockEditor";
+import { StatLibrary } from "./StatLibrary";
 import { folderAndDescendants } from "./library/folderPath";
 import type { Selection } from "./library/LibraryTree";
 import { MapUpload } from "./MapUpload";
@@ -34,6 +38,8 @@ type Props = {
   tokenLibrary: TokenPrototype[];
   tokenFolders: LibraryFolder[];
   tokens: PlacedToken[];
+  statLibrary: StatBlockEntry[];
+  statFolders: LibraryFolder[];
   sessionToken: string;
   theme: Theme;
   onToggleTheme: () => void;
@@ -48,12 +54,15 @@ export function GmShell({
   tokenLibrary = [],
   tokenFolders = [],
   tokens = [],
+  statLibrary = [],
+  statFolders = [],
   sessionToken,
   theme,
   onToggleTheme,
 }: Props) {
   const [selection, setSelection] = useState<Selection>({ kind: "item", id: scene.id });
   const [tokenSel, setTokenSel] = useState<Selection>({ kind: "root" });
+  const [statSel, setStatSel] = useState<Selection>({ kind: "root" });
   const [placeKind, setPlaceKind] = useState<PlaceKind>("off");
   const [selectedPlacedId, setSelectedPlacedId] = useState<string | null>(null);
 
@@ -153,6 +162,7 @@ export function GmShell({
                   library={tokenLibrary}
                   folders={tokenFolders}
                   players={players}
+                  statLibrary={statLibrary}
                   selection={tokenSel}
                   onSelect={(next) => {
                     setTokenSel(next);
@@ -166,6 +176,20 @@ export function GmShell({
                   onTogglePlaceAll={() => {
                     setPlaceKind((k) => (k === "all" ? "off" : "all"));
                   }}
+                />
+              ),
+            },
+            {
+              id: "stats",
+              label: "Stats",
+              icon: StatsIcon,
+              content: (
+                <StatLibrary
+                  sessionToken={sessionToken}
+                  library={statLibrary}
+                  folders={statFolders}
+                  selection={statSel}
+                  onSelect={setStatSel}
                 />
               ),
             },
@@ -278,6 +302,30 @@ function PlacedInspect({
           ))}
         </select>
       </label>
+      {token.statBlock ? (
+        <StatBlockEditor
+          data={token.statBlock}
+          onChange={(data) => {
+            void gmFetch(`/api/placed/${token.id}`, sessionToken, {
+              method: "PATCH",
+              body: JSON.stringify({ statBlock: data }),
+            });
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          className="file-btn"
+          onClick={() => {
+            void gmFetch(`/api/placed/${token.id}`, sessionToken, {
+              method: "PATCH",
+              body: JSON.stringify({ statBlock: emptyStatBlock() }),
+            });
+          }}
+        >
+          Add stat block
+        </button>
+      )}
       <button
         type="button"
         className="file-btn"

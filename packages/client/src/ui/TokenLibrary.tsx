@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { TOKEN_SIZES, type LibraryFolder, type Presence, type TokenPrototype, type TokenSize } from "@p2evtt/shared";
+import {
+  TOKEN_SIZES,
+  type LibraryFolder,
+  type Presence,
+  type StatBlockEntry,
+  type TokenPrototype,
+  type TokenSize,
+} from "@p2evtt/shared";
 import { gmFetch } from "../net/gmApi";
 import { AssignedToSelect } from "./AssignedToSelect";
 import { folderAndDescendants, folderPath, targetFolderId } from "./library/folderPath";
@@ -12,6 +19,7 @@ type Props = {
   library: TokenPrototype[];
   folders: LibraryFolder[];
   players: Presence[];
+  statLibrary: StatBlockEntry[];
   selection: Selection;
   onSelect: (selection: Selection) => void;
   placeKind: PlaceKind;
@@ -24,6 +32,7 @@ export function TokenLibrary({
   library,
   folders,
   players,
+  statLibrary,
   selection,
   onSelect,
   placeKind,
@@ -197,6 +206,30 @@ export function TokenLibrary({
               );
             }}
           />
+          <label className="folder-move">
+            Stat block
+            <select
+              value={selected.statBlockId ?? ""}
+              onChange={(e) => {
+                void run("Updating…", () =>
+                  gmFetch(`/api/token-prototypes/${selected.id}`, sessionToken, {
+                    method: "PATCH",
+                    body: JSON.stringify({ statBlockId: e.target.value === "" ? null : e.target.value }),
+                  }).then(() => undefined),
+                );
+              }}
+            >
+              <option value="">None</option>
+              {statLibrary
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((block) => (
+                  <option key={block.id} value={block.id}>
+                    {block.name}
+                  </option>
+                ))}
+            </select>
+          </label>
           <label className="folder-move">
             Default size (new placements)
             <select

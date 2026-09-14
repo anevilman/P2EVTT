@@ -3,7 +3,8 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { FastifyReply } from "fastify";
-import type { PlacedToken, TokenPrototype, TokenSize, TokenSnapshot } from "@p2evtt/shared";
+import type { PlacedToken, StatBlockData, TokenPrototype, TokenSize, TokenSnapshot } from "@p2evtt/shared";
+import { parseStatBlockData } from "@p2evtt/shared";
 import { uniqueAmong } from "./names";
 
 const ALLOWED = new Map([
@@ -21,6 +22,7 @@ type ProtoRecord = {
   size: TokenSize;
   usesFixture: boolean;
   controlledBy: string | null;
+  statBlockId: string | null;
 };
 
 type FolderRecord = {
@@ -29,10 +31,11 @@ type FolderRecord = {
   parentId: string | null;
 };
 
-type PlacedRecord = Omit<PlacedToken, "size" | "controlledBy"> & {
+type PlacedRecord = Omit<PlacedToken, "size" | "controlledBy" | "statBlock"> & {
   size?: TokenSize;
   controlledBy?: string | null;
   controllerId?: string | null;
+  statBlock?: StatBlockData | null;
 };
 
 type DiskState = {
@@ -64,6 +67,7 @@ export class TokenStore {
       this.prototypes = (raw.prototypes ?? []).map((p) => ({
         ...p,
         controlledBy: normalizeControllerName(p.controlledBy),
+        statBlockId: p.statBlockId ?? null,
       }));
       this.placed = (raw.placed ?? []).map((t) => ({
         ...t,
@@ -72,6 +76,7 @@ export class TokenStore {
           this.prototypes.find((p) => p.id === t.prototypeId)?.size ??
           "medium",
         controlledBy: normalizeControllerName(t.controlledBy ?? t.controllerId),
+        statBlock: t.statBlock == null ? null : parseStatBlockData(t.statBlock),
       }));
     }
     if (this.prototypes.length < 1) {
@@ -85,6 +90,7 @@ export class TokenStore {
           size: "medium",
           usesFixture: true,
           controlledBy: null,
+          statBlockId: null,
         },
       ];
       await this.persist();
@@ -113,6 +119,7 @@ export class TokenStore {
       size: "medium",
       usesFixture: false,
       controlledBy: null,
+      statBlockId: null,
     };
     this.prototypes.push(record);
     await this.persist();
@@ -151,6 +158,24 @@ export class TokenStore {
     this.requireProto(id).controlledBy = normalizeControllerName(name);
     await this.persist();
     return this.snapshot();
+  }
+
+  async setPrototypeStatBlock(id: string, statBlockId: string | null): Promise<TokenSnapshot> {
+    this.requireProto(id).statBlockId = statBlockId;
+    await this.persist();
+    return this.snapshot();
+  }
+
+  async clearStatBlockRefs(statBlockId: string): Promise<TokenSnapshot> {
+    for (const p of this.prototypes) {
+      if (p.statBlockId === statBlockId) p.statBlockId = null;
+    }
+    await this.persist();
+    return this.snapshot();
+  }
+
+  getPrototype(id: string): TokenPrototype {
+    return this.toPublic(this.requireProto(id));
   }
 
   async removePrototype(id: string): Promise<TokenSnapshot> {
@@ -219,7 +244,13 @@ export class TokenStore {
     return this.snapshot();
   }
 
-  async place(prototypeId: string, sceneId: string, x: number, y: number): Promise<TokenSnapshot> {
+  async place(
+    prototypeId: string,
+    sceneId: string,
+    x: number,
+    y: number,
+    statBlock: StatBlockData | null,
+  ): Promise<TokenSnapshot> {
     const proto = this.requireProto(prototypeId);
     this.placed.push({
       id: randomUUID(),
@@ -229,6 +260,7 @@ export class TokenStore {
       y,
       size: proto.size,
       controlledBy: proto.controlledBy,
+      statBlock,
     });
     await this.persist();
     return this.snapshot();
@@ -236,7 +268,7 @@ export class TokenStore {
 
   async placeMany(
     sceneId: string,
-    placements: { prototypeId: string; x: number; y: number }[],
+    placements: { prototypeId: string; x: number; y: number; statBlock: StatBlockData | null }[],
   ): Promise<TokenSnapshot> {
     if (placements.length < 1) throw new Error("Nothing to place.");
     for (const p of placements) {
@@ -250,6 +282,7 @@ export class TokenStore {
         y: p.y,
         size: proto.size,
         controlledBy: proto.controlledBy,
+        statBlock: p.statBlock,
       });
     }
     await this.persist();
@@ -258,7 +291,13 @@ export class TokenStore {
 
   async updatePlaced(
     id: string,
-    patch: { x?: number; y?: number; size?: TokenSize; controlledBy?: string | null },
+    patch: {
+      x?: number;
+      y?: number;
+      size?: TokenSize;
+      controlledBy?: string | null;
+      statBlock?: StatBlockData | null;
+    },
   ): Promise<TokenSnapshot> {
     const token = this.placed.find((t) => t.id === id);
     if (!token) throw new Error("Unknown token.");
@@ -266,6 +305,9 @@ export class TokenStore {
     if (patch.y !== undefined) token.y = patch.y;
     if (patch.size !== undefined) token.size = patch.size;
     if (patch.controlledBy !== undefined) token.controlledBy = normalizeControllerName(patch.controlledBy);
+    if (patch.statBlock !== undefined) {
+      token.statBlock = patch.statBlock == null ? null : parseStatBlockData(patch.statBlock);
+    }
     await this.persist();
     return this.snapshot();
   }
@@ -304,6 +346,7 @@ export class TokenStore {
       size: record.size,
       version: record.version,
       controlledBy: record.controlledBy ?? null,
+      statBlockId: record.statBlockId ?? null,
     };
   }
 

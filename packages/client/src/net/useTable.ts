@@ -5,6 +5,7 @@ import type {
   Presence,
   ScenePublic,
   SceneSummary,
+  StatBlockEntry,
   TokenPrototype,
 } from "@p2evtt/shared";
 import {
@@ -28,6 +29,8 @@ export function useTable() {
   const [tokenLibrary, setTokenLibrary] = useState<TokenPrototype[]>([]);
   const [tokenFolders, setTokenFolders] = useState<LibraryFolder[]>([]);
   const [tokens, setTokens] = useState<PlacedToken[]>([]);
+  const [statLibrary, setStatLibrary] = useState<StatBlockEntry[]>([]);
+  const [statFolders, setStatFolders] = useState<LibraryFolder[]>([]);
   const { theme, toggle: toggleTheme } = useTheme();
 
   const applySnapshot = (next: {
@@ -59,6 +62,8 @@ export function useTable() {
           setTokenLibrary(next.tokenLibrary ?? []);
           setTokenFolders(next.tokenFolders ?? []);
           setTokens(next.tokens ?? []);
+          setStatLibrary(next.statLibrary ?? []);
+          setStatFolders(next.statFolders ?? []);
           setBusy(false);
         },
         onPresence: (list) => setPlayers(list),
@@ -69,6 +74,10 @@ export function useTable() {
           setTokenLibrary(nextLibrary ?? []);
           setTokenFolders(nextFolders ?? []);
           setTokens(nextTokens ?? []);
+        },
+        onStats: (nextLibrary, nextFolders) => {
+          setStatLibrary(nextLibrary ?? []);
+          setStatFolders(nextFolders ?? []);
         },
         onRejected: (reason) => {
           conn.current?.close();
@@ -96,6 +105,8 @@ export function useTable() {
     tokenLibrary,
     tokenFolders,
     tokens,
+    statLibrary,
+    statFolders,
     theme,
     toggleTheme,
     defaultName: loadDisplayName(),
