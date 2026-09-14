@@ -64,6 +64,7 @@ export async function registerWs(
             players,
             scene: snap.scene,
             library: snap.library,
+            folders: snap.folders,
           }),
         );
         table.broadcast({ type: "presence", players }, socket);

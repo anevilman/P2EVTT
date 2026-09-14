@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { Presence, ScenePublic, SceneSummary } from "@p2evtt/shared";
+import type { LibraryFolder, Presence, ScenePublic, SceneSummary } from "@p2evtt/shared";
 import { connectTable, type TableSession } from "./net/socket";
 import type { ClientMsg } from "@p2evtt/shared";
 import {
@@ -23,6 +23,7 @@ export function App() {
   const [players, setPlayers] = useState<Presence[]>([]);
   const [scene, setScene] = useState<ScenePublic | null>(null);
   const [library, setLibrary] = useState<SceneSummary[]>([]);
+  const [folders, setFolders] = useState<LibraryFolder[]>([]);
   const { theme, toggle: toggleTheme } = useTheme();
 
   const join = (displayName: string, wantGm: boolean) => {
@@ -42,12 +43,14 @@ export function App() {
           setPlayers(next.players);
           setScene(next.scene);
           setLibrary(next.library);
+          setFolders(next.folders);
           setBusy(false);
         },
         onPresence: (list) => setPlayers(list),
-        onScene: (next, nextLibrary) => {
+        onScene: (next, nextLibrary, nextFolders) => {
           setScene(next);
           setLibrary(nextLibrary);
+          setFolders(nextFolders);
         },
         onRejected: (reason) => {
           conn.current?.close();
@@ -71,6 +74,7 @@ export function App() {
         players={players}
         scene={scene}
         library={library}
+        folders={folders}
         sessionToken={session.sessionToken}
         theme={theme}
         onToggleTheme={toggleTheme}

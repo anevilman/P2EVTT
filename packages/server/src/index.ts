@@ -76,9 +76,11 @@ async function main() {
 
   app.post("/api/scenes", async (req, reply) => {
     if (!requireGm(req, reply, table)) return;
-    const name = String((req.body as { name?: unknown } | null)?.name ?? "New scene");
+    const body = (req.body as { name?: unknown; folderId?: unknown } | null) ?? {};
+    const name = String(body.name ?? "New scene");
+    const folderId = body.folderId === null || body.folderId === undefined ? null : String(body.folderId);
     try {
-      const snap = await scene.create(name);
+      const snap = await scene.createScene(name, folderId);
       table.broadcast({ type: "scene.updated", ...snap });
       return snap;
     } catch (err) {
@@ -89,13 +91,59 @@ async function main() {
   app.patch("/api/scenes/:id", async (req, reply) => {
     if (!requireGm(req, reply, table)) return;
     const { id } = req.params as { id: string };
-    const name = String((req.body as { name?: unknown } | null)?.name ?? "");
+    const body = (req.body as { name?: unknown; folderId?: unknown } | null) ?? {};
     try {
-      const snap = await scene.rename(id, name);
+      let snap = scene.snapshot();
+      if (typeof body.folderId !== "undefined") {
+        const folderId = body.folderId === null ? null : String(body.folderId);
+        snap = await scene.moveScene(id, folderId);
+      }
+      if (typeof body.name === "string") {
+        snap = await scene.renameScene(id, body.name);
+      }
       table.broadcast({ type: "scene.updated", ...snap });
       return snap;
     } catch (err) {
-      return reply.code(400).send({ error: errorMessage(err, "Could not rename scene") });
+      return reply.code(400).send({ error: errorMessage(err, "Could not update scene") });
+    }
+  });
+
+  app.post("/api/folders", async (req, reply) => {
+    if (!requireGm(req, reply, table)) return;
+    const body = (req.body as { name?: unknown; parentId?: unknown } | null) ?? {};
+    const name = String(body.name ?? "New folder");
+    const parentId = body.parentId === null || body.parentId === undefined ? null : String(body.parentId);
+    try {
+      const snap = await scene.createFolder(name, parentId);
+      table.broadcast({ type: "scene.updated", ...snap });
+      return snap;
+    } catch (err) {
+      return reply.code(400).send({ error: errorMessage(err, "Could not create folder") });
+    }
+  });
+
+  app.patch("/api/folders/:id", async (req, reply) => {
+    if (!requireGm(req, reply, table)) return;
+    const { id } = req.params as { id: string };
+    const name = String((req.body as { name?: unknown } | null)?.name ?? "");
+    try {
+      const snap = await scene.renameFolder(id, name);
+      table.broadcast({ type: "scene.updated", ...snap });
+      return snap;
+    } catch (err) {
+      return reply.code(400).send({ error: errorMessage(err, "Could not rename folder") });
+    }
+  });
+
+  app.delete("/api/folders/:id", async (req, reply) => {
+    if (!requireGm(req, reply, table)) return;
+    const { id } = req.params as { id: string };
+    try {
+      const snap = await scene.removeFolder(id);
+      table.broadcast({ type: "scene.updated", ...snap });
+      return snap;
+    } catch (err) {
+      return reply.code(400).send({ error: errorMessage(err, "Could not delete folder") });
     }
   });
 
@@ -103,7 +151,7 @@ async function main() {
     if (!requireGm(req, reply, table)) return;
     const { id } = req.params as { id: string };
     try {
-      const snap = await scene.remove(id);
+      const snap = await scene.removeScene(id);
       table.broadcast({ type: "scene.updated", ...snap });
       return snap;
     } catch (err) {

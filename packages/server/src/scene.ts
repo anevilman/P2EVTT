@@ -3,7 +3,7 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { FastifyReply } from "fastify";
-import type { ScenePublic, SceneSummary } from "@p2evtt/shared";
+import type { LibraryFolder, ScenePublic, SceneSummary } from "@p2evtt/shared";
 
 const ALLOWED = new Map([
   ["image/jpeg", ".jpg"],
@@ -14,18 +14,33 @@ const ALLOWED = new Map([
 type SceneRecord = {
   id: string;
   name: string;
+  folderId: string | null;
   ext: string | null;
   version: number;
   usesFixture: boolean;
 };
 
+type FolderRecord = {
+  id: string;
+  name: string;
+  parentId: string | null;
+};
+
 type DiskState = {
   activeId: string;
   scenes: SceneRecord[];
+  folders: FolderRecord[];
+};
+
+export type SceneSnapshot = {
+  scene: ScenePublic;
+  library: SceneSummary[];
+  folders: LibraryFolder[];
 };
 
 export class SceneStore {
   private scenes: SceneRecord[] = [];
+  private folders: FolderRecord[] = [];
   private activeId = "";
   private readonly statePath: string;
   private readonly mediaDir: string;
@@ -42,13 +57,18 @@ export class SceneStore {
     await mkdir(this.mediaDir, { recursive: true });
     if (existsSync(this.statePath)) {
       const raw = JSON.parse(await readFile(this.statePath, "utf8")) as DiskState;
-      this.scenes = raw.scenes ?? [];
+      this.scenes = (raw.scenes ?? []).map((s) => ({
+        ...s,
+        folderId: s.folderId ?? null,
+      }));
+      this.folders = raw.folders ?? [];
       this.activeId = raw.activeId ?? this.scenes[0]?.id ?? "";
     }
     if (this.scenes.length < 1) {
       const first: SceneRecord = {
         id: randomUUID(),
         name: "Dungeon",
+        folderId: null,
         ext: null,
         version: 1,
         usesFixture: true,
@@ -59,43 +79,58 @@ export class SceneStore {
     }
   }
 
-  library(): SceneSummary[] {
-    return this.scenes.map((s) => ({ id: s.id, name: s.name }));
+  snapshot(): SceneSnapshot {
+    return {
+      scene: this.toPublic(this.requireScene(this.activeId)),
+      library: this.scenes.map((s) => ({ ...this.toPublic(s), folderId: s.folderId })),
+      folders: this.folders.map((f) => ({ id: f.id, name: f.name, parentId: f.parentId })),
+    };
   }
 
-  activePublic(): ScenePublic {
-    return this.toPublic(this.require(this.activeId));
-  }
-
-  snapshot(): { scene: ScenePublic; library: SceneSummary[] } {
-    return { scene: this.activePublic(), library: this.library() };
-  }
-
-  async create(wantedName: string): Promise<{ scene: ScenePublic; library: SceneSummary[] }> {
-    const name = uniqueName(wantedName, this.scenes);
+  async createScene(wantedName: string, folderId: string | null): Promise<SceneSnapshot & { createdId: string }> {
+    if (folderId) this.requireFolder(folderId);
+    const name = uniqueAmong(
+      wantedName,
+      this.scenes.filter((s) => s.folderId === folderId).map((s) => s.name),
+    );
     const record: SceneRecord = {
       id: randomUUID(),
       name,
+      folderId,
       ext: null,
       version: 1,
       usesFixture: false,
     };
     this.scenes.push(record);
-    this.activeId = record.id;
+    await this.persist();
+    return { ...this.snapshot(), createdId: record.id };
+  }
+
+  async renameScene(id: string, wantedName: string): Promise<SceneSnapshot> {
+    const record = this.requireScene(id);
+    record.name = uniqueAmong(
+      wantedName,
+      this.scenes.filter((s) => s.folderId === record.folderId && s.id !== id).map((s) => s.name),
+    );
     await this.persist();
     return this.snapshot();
   }
 
-  async rename(id: string, wantedName: string): Promise<{ scene: ScenePublic; library: SceneSummary[] }> {
-    const record = this.require(id);
-    record.name = uniqueName(wantedName, this.scenes, id);
+  async moveScene(id: string, folderId: string | null): Promise<SceneSnapshot> {
+    if (folderId) this.requireFolder(folderId);
+    const record = this.requireScene(id);
+    record.folderId = folderId;
+    record.name = uniqueAmong(
+      record.name,
+      this.scenes.filter((s) => s.folderId === folderId && s.id !== id).map((s) => s.name),
+    );
     await this.persist();
     return this.snapshot();
   }
 
-  async remove(id: string): Promise<{ scene: ScenePublic; library: SceneSummary[] }> {
+  async removeScene(id: string): Promise<SceneSnapshot> {
     if (this.scenes.length < 2) throw new Error("Keep at least one scene.");
-    const record = this.require(id);
+    const record = this.requireScene(id);
     this.scenes = this.scenes.filter((s) => s.id !== id);
     if (this.activeId === id) this.activeId = this.scenes[0].id;
     if (record.ext) {
@@ -106,22 +141,50 @@ export class SceneStore {
     return this.snapshot();
   }
 
-  async activate(id: string): Promise<{ scene: ScenePublic; library: SceneSummary[] }> {
-    this.require(id);
+  async activate(id: string): Promise<SceneSnapshot> {
+    this.requireScene(id);
     this.activeId = id;
     await this.persist();
     return this.snapshot();
   }
 
-  async saveUpload(
-    id: string,
-    bytes: Buffer,
-    mime: string,
-  ): Promise<{ scene: ScenePublic; library: SceneSummary[] }> {
+  async createFolder(wantedName: string, parentId: string | null): Promise<SceneSnapshot & { createdId: string }> {
+    if (parentId) this.requireFolder(parentId);
+    const name = uniqueAmong(
+      wantedName,
+      this.folders.filter((f) => f.parentId === parentId).map((f) => f.name),
+    );
+    const record: FolderRecord = { id: randomUUID(), name, parentId };
+    this.folders.push(record);
+    await this.persist();
+    return { ...this.snapshot(), createdId: record.id };
+  }
+
+  async renameFolder(id: string, wantedName: string): Promise<SceneSnapshot> {
+    const record = this.requireFolder(id);
+    record.name = uniqueAmong(
+      wantedName,
+      this.folders.filter((f) => f.parentId === record.parentId && f.id !== id).map((f) => f.name),
+    );
+    await this.persist();
+    return this.snapshot();
+  }
+
+  async removeFolder(id: string): Promise<SceneSnapshot> {
+    this.requireFolder(id);
+    const childFolders = this.folders.some((f) => f.parentId === id);
+    const childScenes = this.scenes.some((s) => s.folderId === id);
+    if (childFolders || childScenes) throw new Error("Folder is not empty.");
+    this.folders = this.folders.filter((f) => f.id !== id);
+    await this.persist();
+    return this.snapshot();
+  }
+
+  async saveUpload(id: string, bytes: Buffer, mime: string): Promise<SceneSnapshot> {
     const ext = ALLOWED.get(mime);
     if (!ext) throw new Error("Use a JPEG, PNG, or WebP image.");
     if (bytes.length > 12 * 1024 * 1024) throw new Error("Image is too large (12 MB max).");
-    const record = this.require(id);
+    const record = this.requireScene(id);
     await mkdir(this.mediaDir, { recursive: true });
     if (record.ext) {
       const prev = this.mediaPath(record);
@@ -160,9 +223,15 @@ export class SceneStore {
     };
   }
 
-  private require(id: string): SceneRecord {
+  private requireScene(id: string): SceneRecord {
     const record = this.scenes.find((s) => s.id === id);
     if (!record) throw new Error("Unknown scene.");
+    return record;
+  }
+
+  private requireFolder(id: string): FolderRecord {
+    const record = this.folders.find((f) => f.id === id);
+    if (!record) throw new Error("Unknown folder.");
     return record;
   }
 
@@ -172,18 +241,20 @@ export class SceneStore {
 
   private async persist(): Promise<void> {
     await mkdir(path.dirname(this.statePath), { recursive: true });
-    const state: DiskState = { activeId: this.activeId, scenes: this.scenes };
+    const state: DiskState = {
+      activeId: this.activeId,
+      scenes: this.scenes,
+      folders: this.folders,
+    };
     await writeFile(this.statePath, JSON.stringify(state, null, 2), "utf8");
   }
 }
 
-function uniqueName(wanted: string, scenes: SceneRecord[], exceptId?: string): string {
+function uniqueAmong(wanted: string, existing: string[]): string {
   const name = wanted.trim();
-  if (name.length < 1) throw new Error("Enter a scene name.");
+  if (name.length < 1) throw new Error("Enter a name.");
   if (name.length > 48) throw new Error("Name is too long (48 characters max).");
-  const taken = new Set(
-    scenes.filter((s) => s.id !== exceptId).map((s) => s.name.toLowerCase()),
-  );
+  const taken = new Set(existing.map((n) => n.toLowerCase()));
   if (!taken.has(name.toLowerCase())) return name;
   for (let n = 2; n < 100; n++) {
     const candidate = `${name} (${n})`;

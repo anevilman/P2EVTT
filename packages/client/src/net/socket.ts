@@ -3,6 +3,7 @@ import {
   PROTOCOL_VERSION,
   type ClientMsg,
   type Presence,
+  type LibraryFolder,
   type ScenePublic,
   type SceneSummary,
   type ServerMsg,
@@ -14,12 +15,13 @@ export type TableSession = {
   sessionToken: string;
   scene: ScenePublic;
   library: SceneSummary[];
+  folders: LibraryFolder[];
 };
 
 type Handlers = {
   onHello: (session: TableSession) => void;
   onPresence: (players: Presence[]) => void;
-  onScene: (scene: ScenePublic, library: SceneSummary[]) => void;
+  onScene: (scene: ScenePublic, library: SceneSummary[], folders: LibraryFolder[]) => void;
   onRejected: (reason: string) => void;
   onError: (message: string) => void;
   onClosed: () => void;
@@ -67,13 +69,14 @@ export function connectTable(opts: {
         sessionToken: msg.sessionToken,
         scene: msg.scene,
         library: msg.library,
+        folders: msg.folders,
       });
     } else if (msg.type === "hello.rejected") {
       opts.handlers.onRejected(msg.reason);
     } else if (msg.type === "presence") {
       opts.handlers.onPresence(msg.players);
     } else if (msg.type === "scene.updated") {
-      opts.handlers.onScene(msg.scene, msg.library);
+      opts.handlers.onScene(msg.scene, msg.library, msg.folders);
     } else if (msg.type === "error") {
       opts.handlers.onError(msg.message);
     }

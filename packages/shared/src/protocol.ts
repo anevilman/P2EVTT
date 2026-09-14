@@ -8,9 +8,18 @@ export type Presence = {
   role: Role;
 };
 
+export type LibraryFolder = {
+  id: string;
+  name: string;
+  parentId: string | null;
+};
+
 export type SceneSummary = {
   id: string;
   name: string;
+  folderId: string | null;
+  backgroundUrl: string | null;
+  version: number;
 };
 
 export type ScenePublic = {
@@ -38,10 +47,16 @@ export type ServerMsg =
       players: Presence[];
       scene: ScenePublic;
       library: SceneSummary[];
+      folders: LibraryFolder[];
     }
   | { type: "hello.rejected"; reason: string }
   | { type: "presence"; players: Presence[] }
-  | { type: "scene.updated"; scene: ScenePublic; library: SceneSummary[] }
+  | {
+      type: "scene.updated";
+      scene: ScenePublic;
+      library: SceneSummary[];
+      folders: LibraryFolder[];
+    }
   | { type: "hb.pong" }
   | { type: "error"; message: string };
 
@@ -91,14 +106,24 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
       players?: unknown;
       scene?: unknown;
       library?: unknown;
+      folders?: unknown;
     };
     if (typeof m.sessionToken !== "string") return null;
     const you = parsePresence(m.you);
     const players = parsePresenceList(m.players);
     const scene = parseScene(m.scene);
     const library = parseLibrary(m.library);
-    if (!you || !players || !scene || !library) return null;
-    return { type: "hello.ok", sessionToken: m.sessionToken, you, players, scene, library };
+    const folders = parseFolders(m.folders);
+    if (!you || !players || !scene || !library || !folders) return null;
+    return {
+      type: "hello.ok",
+      sessionToken: m.sessionToken,
+      you,
+      players,
+      scene,
+      library,
+      folders,
+    };
   }
   if (msg.type === "presence") {
     const players = parsePresenceList((raw as { players?: unknown }).players);
@@ -106,11 +131,12 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
     return { type: "presence", players };
   }
   if (msg.type === "scene.updated") {
-    const m = raw as { scene?: unknown; library?: unknown };
+    const m = raw as { scene?: unknown; library?: unknown; folders?: unknown };
     const scene = parseScene(m.scene);
     const library = parseLibrary(m.library);
-    if (!scene || !library) return null;
-    return { type: "scene.updated", scene, library };
+    const folders = parseFolders(m.folders);
+    if (!scene || !library || !folders) return null;
+    return { type: "scene.updated", scene, library, folders };
   }
   return null;
 }
@@ -158,10 +184,24 @@ function parseLibrary(raw: unknown): SceneSummary[] | null {
   if (!Array.isArray(raw)) return null;
   const out: SceneSummary[] = [];
   for (const item of raw) {
+    const s = parseScene(item);
+    if (!s) return null;
+    const folderId = (item as { folderId?: unknown }).folderId;
+    if (folderId !== null && typeof folderId !== "string") return null;
+    out.push({ ...s, folderId });
+  }
+  return out;
+}
+
+function parseFolders(raw: unknown): LibraryFolder[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: LibraryFolder[] = [];
+  for (const item of raw) {
     if (!item || typeof item !== "object") return null;
-    const s = item as { id?: unknown; name?: unknown };
-    if (typeof s.id !== "string" || typeof s.name !== "string") return null;
-    out.push({ id: s.id, name: s.name });
+    const f = item as { id?: unknown; name?: unknown; parentId?: unknown };
+    if (typeof f.id !== "string" || typeof f.name !== "string") return null;
+    if (f.parentId !== null && typeof f.parentId !== "string") return null;
+    out.push({ id: f.id, name: f.name, parentId: f.parentId });
   }
   return out;
 }
