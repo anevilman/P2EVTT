@@ -173,7 +173,7 @@ export function TokenLibrary({
             </select>
           </label>
           <label className="folder-move">
-            Size
+            Default size (new placements)
             <select
               value={selected.size}
               onChange={(e) => {

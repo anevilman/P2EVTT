@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import type {
-  LibraryFolder,
-  PlacedToken,
-  Presence,
-  ScenePublic,
-  SceneSummary,
-  TokenPrototype,
+import {
+  TOKEN_SIZES,
+  type LibraryFolder,
+  type PlacedToken,
+  type Presence,
+  type ScenePublic,
+  type SceneSummary,
+  type TokenPrototype,
+  type TokenSize,
 } from "@p2evtt/shared";
 import { MapViewport, toMapTokens } from "../game/MapViewport";
 import { gmFetch } from "../net/gmApi";
@@ -205,6 +207,24 @@ function PlacedInspect({
       <p className="meta">
         {Math.round(token.x)}, {Math.round(token.y)}
       </p>
+      <label className="folder-move">
+        Size
+        <select
+          value={token.size}
+          onChange={(e) => {
+            void gmFetch(`/api/placed/${token.id}`, sessionToken, {
+              method: "PATCH",
+              body: JSON.stringify({ size: e.target.value as TokenSize }),
+            });
+          }}
+        >
+          {TOKEN_SIZES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </label>
       <button
         type="button"
         className="file-btn"

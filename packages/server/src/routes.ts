@@ -192,12 +192,21 @@ export async function registerRoutes(
 
   app.patch(
     "/api/placed/:id",
-    gmHandler(table, "Could not move token", async (req) => {
-      const body = (req.body as { x?: unknown; y?: unknown } | null) ?? {};
-      const x = Number(body.x);
-      const y = Number(body.y);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error("x and y must be numbers.");
-      return publishTokens(table, await tokens.move(idParam(req), x, y));
+    gmHandler(table, "Could not update token", async (req) => {
+      const body = (req.body as { x?: unknown; y?: unknown; size?: unknown } | null) ?? {};
+      const patch: { x?: number; y?: number; size?: TokenSize } = {};
+      if (body.x !== undefined) {
+        const x = Number(body.x);
+        if (!Number.isFinite(x)) throw new Error("x must be a number.");
+        patch.x = x;
+      }
+      if (body.y !== undefined) {
+        const y = Number(body.y);
+        if (!Number.isFinite(y)) throw new Error("y must be a number.");
+        patch.y = y;
+      }
+      if (body.size !== undefined) patch.size = asSize(body.size);
+      return publishTokens(table, await tokens.updatePlaced(idParam(req), patch));
     }),
   );
 

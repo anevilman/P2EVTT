@@ -300,7 +300,7 @@ export function toMapTokens(
         ...t,
         name: proto?.name ?? "Token",
         imageUrl: proto?.imageUrl ?? null,
-        sizePx: TOKEN_PX[proto?.size ?? "medium"],
+        sizePx: TOKEN_PX[t.size ?? proto?.size ?? "medium"],
       };
     });
 }

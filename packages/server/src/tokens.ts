@@ -28,10 +28,12 @@ type FolderRecord = {
   parentId: string | null;
 };
 
+type PlacedRecord = Omit<PlacedToken, "size"> & { size?: TokenSize };
+
 type DiskState = {
   folders: FolderRecord[];
   prototypes: ProtoRecord[];
-  placed: PlacedToken[];
+  placed: PlacedRecord[];
 };
 
 export class TokenStore {
@@ -55,7 +57,13 @@ export class TokenStore {
       const raw = JSON.parse(await readFile(this.statePath, "utf8")) as DiskState;
       this.folders = raw.folders ?? [];
       this.prototypes = raw.prototypes ?? [];
-      this.placed = raw.placed ?? [];
+      this.placed = (raw.placed ?? []).map((t) => ({
+        ...t,
+        size:
+          t.size ??
+          this.prototypes.find((p) => p.id === t.prototypeId)?.size ??
+          "medium",
+      }));
     }
     if (this.prototypes.length < 1) {
       this.prototypes = [
@@ -195,23 +203,28 @@ export class TokenStore {
   }
 
   async place(prototypeId: string, sceneId: string, x: number, y: number): Promise<TokenSnapshot> {
-    this.requireProto(prototypeId);
+    const proto = this.requireProto(prototypeId);
     this.placed.push({
       id: randomUUID(),
       prototypeId,
       sceneId,
       x,
       y,
+      size: proto.size,
     });
     await this.persist();
     return this.snapshot();
   }
 
-  async move(id: string, x: number, y: number): Promise<TokenSnapshot> {
+  async updatePlaced(
+    id: string,
+    patch: { x?: number; y?: number; size?: TokenSize },
+  ): Promise<TokenSnapshot> {
     const token = this.placed.find((t) => t.id === id);
     if (!token) throw new Error("Unknown token.");
-    token.x = x;
-    token.y = y;
+    if (patch.x !== undefined) token.x = patch.x;
+    if (patch.y !== undefined) token.y = patch.y;
+    if (patch.size !== undefined) token.size = patch.size;
     await this.persist();
     return this.snapshot();
   }

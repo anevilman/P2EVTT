@@ -43,6 +43,7 @@ export type PlacedToken = {
   sceneId: string;
   x: number;
   y: number;
+  size: TokenSize;
 };
 
 export type TokenSnapshot = {
@@ -284,17 +285,20 @@ function parsePlacedToken(raw: unknown): PlacedToken | null {
     sceneId?: unknown;
     x?: unknown;
     y?: unknown;
+    size?: unknown;
   };
+  const size = parseTokenSize(t.size);
   if (
     typeof t.id !== "string" ||
     typeof t.prototypeId !== "string" ||
     typeof t.sceneId !== "string" ||
     typeof t.x !== "number" ||
-    typeof t.y !== "number"
+    typeof t.y !== "number" ||
+    !size
   ) {
     return null;
   }
-  return { id: t.id, prototypeId: t.prototypeId, sceneId: t.sceneId, x: t.x, y: t.y };
+  return { id: t.id, prototypeId: t.prototypeId, sceneId: t.sceneId, x: t.x, y: t.y, size };
 }
 
 function parseTokenSnapshot(raw: unknown): TokenSnapshot | null {
