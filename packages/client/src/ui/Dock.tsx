@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 export type DockTab = {
   id: string;
   label: string;
+  icon: ReactNode;
   content: ReactNode;
 };
 
@@ -57,10 +58,11 @@ export function Dock({ tabs, storageKey, defaultTab }: Props) {
             role="tab"
             aria-selected={tab.id === openId}
             className={tab.id === openId ? "dock-tab active" : "dock-tab"}
-            title={openId === tab.id ? `Close ${tab.label}` : `Open ${tab.label}`}
+            title={openId === tab.id ? `Close ${tab.label}` : tab.label}
             onClick={() => toggle(tab.id)}
           >
-            {tab.label}
+            {tab.icon}
+            <span className="dock-tab-label">{tab.label}</span>
           </button>
         ))}
       </div>

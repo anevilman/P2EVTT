@@ -2,6 +2,7 @@ import type { Presence, ScenePublic } from "@p2evtt/shared";
 import { MapViewport } from "../game/MapViewport";
 import type { Theme } from "../theme";
 import { Dock } from "./Dock";
+import { PartyIcon, SheetIcon } from "./dockIcons";
 import { ThemeToggle } from "./ThemeToggle";
 
 type Props = {
@@ -29,6 +30,7 @@ export function PlayerShell({ you, players, scene, theme, onToggleTheme }: Props
           {
             id: "party",
             label: "Party",
+            icon: PartyIcon,
             content: (
               <>
                 <h2>Party</h2>
@@ -46,6 +48,7 @@ export function PlayerShell({ you, players, scene, theme, onToggleTheme }: Props
           {
             id: "sheet",
             label: "Sheet",
+            icon: SheetIcon,
             content: (
               <>
                 <h2>My sheet</h2>

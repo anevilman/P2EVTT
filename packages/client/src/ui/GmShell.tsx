@@ -3,6 +3,7 @@ import type { LibraryFolder, Presence, ScenePublic, SceneSummary } from "@p2evtt
 import { MapViewport } from "../game/MapViewport";
 import type { Theme } from "../theme";
 import { Dock } from "./Dock";
+import { InspectIcon, ScenesIcon, TokensIcon } from "./dockIcons";
 import type { Selection } from "./library/LibraryTree";
 import { MapUpload } from "./MapUpload";
 import { SceneLibrary } from "./SceneLibrary";
@@ -64,6 +65,7 @@ export function GmShell({
           {
             id: "scenes",
             label: "Scenes",
+            icon: ScenesIcon,
             content: (
               <>
                 <SceneLibrary
@@ -81,6 +83,7 @@ export function GmShell({
           {
             id: "tokens",
             label: "Tokens",
+            icon: TokensIcon,
             content: (
               <>
                 <h2>Tokens</h2>
@@ -91,6 +94,7 @@ export function GmShell({
           {
             id: "inspect",
             label: "Inspect",
+            icon: InspectIcon,
             content: (
               <>
                 <h2>Inspector</h2>
