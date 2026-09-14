@@ -295,9 +295,7 @@ h1 {
   border-right: 1px solid var(--border);
 }
 
-.dock-panel:has(.token-library) {
-  overflow: hidden;
-}
+
 
 .map {
   grid-area: map;
@@ -363,26 +361,19 @@ h1 {
 }
 
 .token-library {
-  height: 100%;
+  flex: none;
   margin-bottom: 0;
-}
-
-.lib-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
 }
 
 .token-library .lib-tree-wrap {
   flex: none;
-  min-height: 6rem;
-  overflow: visible;
+  min-height: 12rem;
 }
 
 .token-preview {
-  flex-shrink: 0;
-  margin-top: 0.6rem;
-  height: 10.5rem;
+  margin-top: 0.85rem;
+  width: 100%;
+  aspect-ratio: 1;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg);
