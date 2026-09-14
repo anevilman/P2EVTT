@@ -6,8 +6,9 @@ import { Dock } from "./Dock";
 import { InspectIcon, ScenesIcon, TokensIcon } from "./dockIcons";
 import type { Selection } from "./library/LibraryTree";
 import { MapUpload } from "./MapUpload";
+import { PresenceList } from "./PresenceList";
 import { SceneLibrary } from "./SceneLibrary";
-import { ThemeToggle } from "./ThemeToggle";
+import { TableShell } from "./TableShell";
 
 type Props = {
   you: Presence;
@@ -46,87 +47,72 @@ export function GmShell({
   const previewingOther = selectedScene.id !== scene.id;
 
   return (
-    <div className="shell gm">
-      <header className="topbar">
-        <strong>P2EVTT</strong>
-        <span className="badge">GM</span>
-        <span className="scene-title">Live: {scene.name}</span>
-        {previewingOther ? <span className="meta">Editing: {selectedScene.name}</span> : null}
-        <span className="you">{you.displayName}</span>
-        <span className="invite" title="Share this URL. Players just open it in a browser.">
-          Invite: {location.host}
-        </span>
-        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-      </header>
-      <Dock
-        storageKey="p2evtt.dock.gm"
-        defaultTab="scenes"
-        tabs={[
-          {
-            id: "scenes",
-            label: "Scenes",
-            icon: ScenesIcon,
-            content: (
-              <>
-                <SceneLibrary
-                  sessionToken={sessionToken}
-                  live={scene}
-                  library={library}
-                  folders={folders}
-                  selection={selection}
-                  onSelect={setSelection}
-                />
-                <MapUpload sessionToken={sessionToken} sceneId={selectedScene.id} />
-              </>
-            ),
-          },
-          {
-            id: "tokens",
-            label: "Tokens",
-            icon: TokensIcon,
-            content: (
-              <>
-                <h2>Tokens</h2>
-                <p className="placeholder">Token library comes next. Same folder tree as scenes.</p>
-              </>
-            ),
-          },
-          {
-            id: "inspect",
-            label: "Inspect",
-            icon: InspectIcon,
-            content: (
-              <>
-                <h2>Inspector</h2>
-                <p className="placeholder">Token and actor details.</p>
-                <h2>At the table</h2>
-                <PresenceList players={players} />
-              </>
-            ),
-          },
-        ]}
-      />
-      <section className="map">
-        {previewingOther ? (
-          <p className="map-edit-banner">Players are still on {scene.name}</p>
-        ) : null}
-        <MapViewport key={selectedScene.id} backgroundUrl={selectedScene.backgroundUrl} />
-      </section>
-      <footer className="bottom">
-        <p className="placeholder">Chat and dice will live here.</p>
-      </footer>
-    </div>
-  );
-}
-
-function PresenceList({ players }: { players: Presence[] }) {
-  return (
-    <ul className="presence">
-      {players.map((p) => (
-        <li key={p.id}>
-          <span className={p.role === "gm" ? "badge" : "role"}>{p.role}</span> {p.displayName}
-        </li>
-      ))}
-    </ul>
+    <TableShell
+      role="gm"
+      you={you}
+      liveName={scene.name}
+      editingName={previewingOther ? selectedScene.name : null}
+      invite
+      theme={theme}
+      onToggleTheme={onToggleTheme}
+      dock={
+        <Dock
+          storageKey="p2evtt.dock.gm"
+          defaultTab="scenes"
+          tabs={[
+            {
+              id: "scenes",
+              label: "Scenes",
+              icon: ScenesIcon,
+              content: (
+                <>
+                  <SceneLibrary
+                    sessionToken={sessionToken}
+                    live={scene}
+                    library={library}
+                    folders={folders}
+                    selection={selection}
+                    onSelect={setSelection}
+                  />
+                  <MapUpload sessionToken={sessionToken} sceneId={selectedScene.id} />
+                </>
+              ),
+            },
+            {
+              id: "tokens",
+              label: "Tokens",
+              icon: TokensIcon,
+              content: (
+                <>
+                  <h2>Tokens</h2>
+                  <p className="placeholder">Token library comes next. Same folder tree as scenes.</p>
+                </>
+              ),
+            },
+            {
+              id: "inspect",
+              label: "Inspect",
+              icon: InspectIcon,
+              content: (
+                <>
+                  <h2>Inspector</h2>
+                  <p className="placeholder">Token and actor details.</p>
+                  <h2>At the table</h2>
+                  <PresenceList players={players} />
+                </>
+              ),
+            },
+          ]}
+        />
+      }
+      map={
+        <>
+          {previewingOther ? (
+            <p className="map-edit-banner">Players are still on {scene.name}</p>
+          ) : null}
+          <MapViewport key={selectedScene.id} backgroundUrl={selectedScene.backgroundUrl} />
+        </>
+      }
+    />
   );
 }

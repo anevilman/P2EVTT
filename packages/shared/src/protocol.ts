@@ -14,19 +14,15 @@ export type LibraryFolder = {
   parentId: string | null;
 };
 
-export type SceneSummary = {
-  id: string;
-  name: string;
-  folderId: string | null;
-  backgroundUrl: string | null;
-  version: number;
-};
-
 export type ScenePublic = {
   id: string;
   name: string;
   backgroundUrl: string | null;
   version: number;
+};
+
+export type SceneSummary = ScenePublic & {
+  folderId: string | null;
 };
 
 export type ClientMsg =
@@ -149,15 +145,19 @@ function parsePresence(raw: unknown): Presence | null {
   return { id: p.id, displayName: p.displayName, role: p.role };
 }
 
-function parsePresenceList(raw: unknown): Presence[] | null {
+function parseArray<T>(raw: unknown, parseItem: (item: unknown) => T | null): T[] | null {
   if (!Array.isArray(raw)) return null;
-  const out: Presence[] = [];
+  const out: T[] = [];
   for (const item of raw) {
-    const p = parsePresence(item);
-    if (!p) return null;
-    out.push(p);
+    const parsed = parseItem(item);
+    if (!parsed) return null;
+    out.push(parsed);
   }
   return out;
+}
+
+function parsePresenceList(raw: unknown): Presence[] | null {
+  return parseArray(raw, parsePresence);
 }
 
 function parseScene(raw: unknown): ScenePublic | null {
@@ -181,27 +181,21 @@ function parseScene(raw: unknown): ScenePublic | null {
 }
 
 function parseLibrary(raw: unknown): SceneSummary[] | null {
-  if (!Array.isArray(raw)) return null;
-  const out: SceneSummary[] = [];
-  for (const item of raw) {
+  return parseArray(raw, (item) => {
     const s = parseScene(item);
     if (!s) return null;
     const folderId = (item as { folderId?: unknown }).folderId;
     if (folderId !== null && typeof folderId !== "string") return null;
-    out.push({ ...s, folderId });
-  }
-  return out;
+    return { ...s, folderId };
+  });
 }
 
 function parseFolders(raw: unknown): LibraryFolder[] | null {
-  if (!Array.isArray(raw)) return null;
-  const out: LibraryFolder[] = [];
-  for (const item of raw) {
+  return parseArray(raw, (item) => {
     if (!item || typeof item !== "object") return null;
     const f = item as { id?: unknown; name?: unknown; parentId?: unknown };
     if (typeof f.id !== "string" || typeof f.name !== "string") return null;
     if (f.parentId !== null && typeof f.parentId !== "string") return null;
-    out.push({ id: f.id, name: f.name, parentId: f.parentId });
-  }
-  return out;
+    return { id: f.id, name: f.name, parentId: f.parentId };
+  });
 }

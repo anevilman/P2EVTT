@@ -1,3 +1,5 @@
+import { readLocal, writeLocal } from "./storage";
+
 export type Theme = "light" | "dark";
 
 const KEY = "p2evtt.theme";
@@ -11,12 +13,8 @@ export function systemTheme(): Theme {
 }
 
 export function loadTheme(): Theme {
-  try {
-    const stored = localStorage.getItem(KEY);
-    if (stored === "light" || stored === "dark") return stored;
-  } catch {
-    /* private mode */
-  }
+  const stored = readLocal(KEY);
+  if (stored === "light" || stored === "dark") return stored;
   return systemTheme();
 }
 
@@ -24,11 +22,7 @@ export function applyTheme(theme: Theme): void {
   const root = document.documentElement;
   root.dataset.theme = theme;
   root.style.colorScheme = theme;
-  try {
-    localStorage.setItem(KEY, theme);
-  } catch {
-    /* private mode */
-  }
+  writeLocal(KEY, theme);
 }
 
 export function toggleTheme(current: Theme): Theme {

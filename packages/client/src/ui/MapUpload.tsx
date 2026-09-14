@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { gmFetch } from "../net/gmApi";
 
 type Props = {
   sessionToken: string;
@@ -15,15 +16,10 @@ export function MapUpload({ sessionToken, sceneId }: Props) {
     const body = new FormData();
     body.append("file", file);
     try {
-      const res = await fetch(`/api/scenes/${sceneId}/background`, {
+      await gmFetch(`/api/scenes/${sceneId}/background`, sessionToken, {
         method: "POST",
-        headers: { "X-Session-Token": sessionToken },
         body,
       });
-      if (!res.ok) {
-        const err = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(err?.error ?? `Upload failed (${res.status})`);
-      }
       setStatus("Map updated.");
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Upload failed");

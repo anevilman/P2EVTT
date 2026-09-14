@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { readLocal, writeLocal } from "../storage";
 
 export type DockTab = {
   id: string;
@@ -14,23 +15,14 @@ type Props = {
 };
 
 function loadOpen(key: string, fallback: string | null): string | null {
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw === "") return null;
-    if (raw) return raw;
-  } catch {
-    /* private mode */
-  }
+  const raw = readLocal(key);
+  if (raw === "") return null;
+  if (raw) return raw;
   return fallback;
 }
 
 function saveOpen(key: string, id: string | null): void {
-  try {
-    if (id === null) localStorage.setItem(key, "");
-    else localStorage.setItem(key, id);
-  } catch {
-    /* private mode */
-  }
+  writeLocal(key, id ?? "");
 }
 
 export function Dock({ tabs, storageKey, defaultTab }: Props) {

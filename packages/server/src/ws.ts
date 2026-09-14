@@ -1,8 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import websocket from "@fastify/websocket";
-import { parseClientMsg, PROTOCOL_VERSION } from "@p2evtt/shared";
+import type { WebSocket } from "ws";
+import { parseClientMsg, PROTOCOL_VERSION, type ServerMsg } from "@p2evtt/shared";
 import type { SceneStore } from "./scene";
 import { Table } from "./table";
+
+function send(socket: WebSocket, msg: ServerMsg): void {
+  socket.send(JSON.stringify(msg));
+}
 
 export async function registerWs(
   app: FastifyInstance,
@@ -17,26 +22,24 @@ export async function registerWs(
       try {
         parsed = JSON.parse(String(raw));
       } catch {
-        socket.send(JSON.stringify({ type: "error", message: "Invalid JSON" }));
+        send(socket, { type: "error", message: "Invalid JSON" });
         return;
       }
       const msg = parseClientMsg(parsed);
       if (!msg) {
-        socket.send(JSON.stringify({ type: "error", message: "Unknown message" }));
+        send(socket, { type: "error", message: "Unknown message" });
         return;
       }
       if (msg.type === "hb.ping") {
-        socket.send(JSON.stringify({ type: "hb.pong" }));
+        send(socket, { type: "hb.pong" });
         return;
       }
       if (msg.type === "hello") {
         if (msg.protocolVersion !== PROTOCOL_VERSION) {
-          socket.send(
-            JSON.stringify({
-              type: "hello.rejected",
-              reason: `Protocol mismatch (server ${PROTOCOL_VERSION})`,
-            }),
-          );
+          send(socket, {
+            type: "hello.rejected",
+            reason: `Protocol mismatch (server ${PROTOCOL_VERSION})`,
+          });
           socket.close();
           return;
         }
@@ -47,26 +50,24 @@ export async function registerWs(
           socket,
         });
         if ("reject" in result) {
-          socket.send(JSON.stringify({ type: "hello.rejected", reason: result.reject }));
+          send(socket, { type: "hello.rejected", reason: result.reject });
           return;
         }
         const players = table.list();
         const snap = scene.snapshot();
-        socket.send(
-          JSON.stringify({
-            type: "hello.ok",
-            sessionToken: result.seat.sessionToken,
-            you: {
-              id: result.seat.id,
-              displayName: result.seat.displayName,
-              role: result.seat.role,
-            },
-            players,
-            scene: snap.scene,
-            library: snap.library,
-            folders: snap.folders,
-          }),
-        );
+        send(socket, {
+          type: "hello.ok",
+          sessionToken: result.seat.sessionToken,
+          you: {
+            id: result.seat.id,
+            displayName: result.seat.displayName,
+            role: result.seat.role,
+          },
+          players,
+          scene: snap.scene,
+          library: snap.library,
+          folders: snap.folders,
+        });
         table.broadcast({ type: "presence", players }, socket);
       }
     });
