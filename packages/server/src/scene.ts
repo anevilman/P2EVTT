@@ -1,6 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { createReadStream, existsSync } from "node:fs";
+import { existsSync } from "node:fs";
 import type { FastifyReply } from "fastify";
 import type { ScenePublic } from "@p2evtt/shared";
 
@@ -42,15 +42,14 @@ export class SceneStore {
     return this.toPublic();
   }
 
-  sendFile(reply: FastifyReply) {
+  async sendFile(reply: FastifyReply) {
     const file = this.filePath();
     if (!existsSync(file)) {
       return reply.code(404).send({ error: "No map image" });
     }
     const ext = path.extname(file).toLowerCase();
     const type = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg";
-    reply.header("Content-Type", type);
-    reply.header("Cache-Control", "no-cache");
-    return reply.send(createReadStream(file));
+    const bytes = await readFile(file);
+    return reply.header("Content-Type", type).header("Cache-Control", "no-cache").send(bytes);
   }
 }

@@ -67,7 +67,7 @@ async function main() {
     seated: table.list().length,
   }));
 
-  app.get("/media/scene-bg", (_req, reply) => scene.sendFile(reply));
+  app.get("/media/scene-bg", async (_req, reply) => scene.sendFile(reply));
 
   app.post("/api/scene/background", async (req, reply) => {
     const token = String(req.headers["x-session-token"] ?? "");
