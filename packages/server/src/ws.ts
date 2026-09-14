@@ -4,6 +4,7 @@ import type { WebSocket } from "ws";
 import { parseClientMsg, PROTOCOL_VERSION, type ServerMsg } from "@p2evtt/shared";
 import type { SceneStore } from "./scene";
 import { Table } from "./table";
+import type { TokenStore } from "./tokens";
 
 function send(socket: WebSocket, msg: ServerMsg): void {
   socket.send(JSON.stringify(msg));
@@ -13,6 +14,7 @@ export async function registerWs(
   app: FastifyInstance,
   table: Table,
   scene: SceneStore,
+  tokens: TokenStore,
 ): Promise<void> {
   await app.register(websocket);
 
@@ -55,6 +57,7 @@ export async function registerWs(
         }
         const players = table.list();
         const snap = scene.snapshot();
+        const tokenSnap = tokens.snapshot();
         send(socket, {
           type: "hello.ok",
           sessionToken: result.seat.sessionToken,
@@ -67,6 +70,7 @@ export async function registerWs(
           scene: snap.scene,
           library: snap.library,
           folders: snap.folders,
+          ...tokenSnap,
         });
         table.broadcast({ type: "presence", players }, socket);
       }

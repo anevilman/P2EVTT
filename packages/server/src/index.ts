@@ -8,6 +8,7 @@ import { parseArgs, repoRoot } from "./cli";
 import { registerRoutes } from "./routes";
 import { SceneStore } from "./scene";
 import { Table } from "./table";
+import { TokenStore } from "./tokens";
 import { registerWs } from "./ws";
 
 async function main() {
@@ -22,10 +23,15 @@ async function main() {
     path.join(repoRoot(), "packages/server/fixtures/maps/test-dungeon.jpg"),
   );
   await scene.load();
+  const tokens = new TokenStore(
+    args.dataDir,
+    path.join(repoRoot(), "packages/server/fixtures/tokens/adventurer.jpg"),
+  );
+  await tokens.load();
 
   await app.register(multipart, { limits: { fileSize: 12 * 1024 * 1024 } });
-  await registerRoutes(app, table, scene);
-  await registerWs(app, table, scene);
+  await registerRoutes(app, table, scene, tokens);
+  await registerWs(app, table, scene, tokens);
   await app.register(middie);
 
   const clientRoot = path.join(repoRoot(), "packages/client");

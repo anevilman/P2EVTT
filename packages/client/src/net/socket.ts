@@ -6,6 +6,8 @@ import {
   type LibraryFolder,
   type ScenePublic,
   type SceneSummary,
+  type TokenPrototype,
+  type PlacedToken,
   type ServerMsg,
 } from "@p2evtt/shared";
 
@@ -16,12 +18,16 @@ export type TableSession = {
   scene: ScenePublic;
   library: SceneSummary[];
   folders: LibraryFolder[];
+  tokenLibrary: TokenPrototype[];
+  tokenFolders: LibraryFolder[];
+  tokens: PlacedToken[];
 };
 
 type Handlers = {
   onHello: (session: TableSession) => void;
   onPresence: (players: Presence[]) => void;
   onScene: (scene: ScenePublic, library: SceneSummary[], folders: LibraryFolder[]) => void;
+  onTokens: (tokenLibrary: TokenPrototype[], tokenFolders: LibraryFolder[], tokens: PlacedToken[]) => void;
   onRejected: (reason: string) => void;
   onError: (message: string) => void;
   onClosed: () => void;
@@ -70,6 +76,9 @@ export function connectTable(opts: {
         scene: msg.scene,
         library: msg.library,
         folders: msg.folders,
+        tokenLibrary: msg.tokenLibrary,
+        tokenFolders: msg.tokenFolders,
+        tokens: msg.tokens,
       });
     } else if (msg.type === "hello.rejected") {
       opts.handlers.onRejected(msg.reason);
@@ -77,6 +86,8 @@ export function connectTable(opts: {
       opts.handlers.onPresence(msg.players);
     } else if (msg.type === "scene.updated") {
       opts.handlers.onScene(msg.scene, msg.library, msg.folders);
+    } else if (msg.type === "tokens.updated") {
+      opts.handlers.onTokens(msg.tokenLibrary, msg.tokenFolders, msg.tokens);
     } else if (msg.type === "error") {
       opts.handlers.onError(msg.message);
     }

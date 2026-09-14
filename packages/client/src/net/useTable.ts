@@ -1,5 +1,12 @@
 import { useRef, useState } from "react";
-import type { LibraryFolder, Presence, ScenePublic, SceneSummary } from "@p2evtt/shared";
+import type {
+  LibraryFolder,
+  PlacedToken,
+  Presence,
+  ScenePublic,
+  SceneSummary,
+  TokenPrototype,
+} from "@p2evtt/shared";
 import {
   loadDisplayName,
   loadSessionToken,
@@ -18,6 +25,9 @@ export function useTable() {
   const [scene, setScene] = useState<ScenePublic | null>(null);
   const [library, setLibrary] = useState<SceneSummary[]>([]);
   const [folders, setFolders] = useState<LibraryFolder[]>([]);
+  const [tokenLibrary, setTokenLibrary] = useState<TokenPrototype[]>([]);
+  const [tokenFolders, setTokenFolders] = useState<LibraryFolder[]>([]);
+  const [tokens, setTokens] = useState<PlacedToken[]>([]);
   const { theme, toggle: toggleTheme } = useTheme();
 
   const applySnapshot = (next: {
@@ -46,11 +56,19 @@ export function useTable() {
           setSession(next);
           setPlayers(next.players);
           applySnapshot(next);
+          setTokenLibrary(next.tokenLibrary);
+          setTokenFolders(next.tokenFolders);
+          setTokens(next.tokens);
           setBusy(false);
         },
         onPresence: (list) => setPlayers(list),
         onScene: (next, nextLibrary, nextFolders) => {
           applySnapshot({ scene: next, library: nextLibrary, folders: nextFolders });
+        },
+        onTokens: (nextLibrary, nextFolders, nextTokens) => {
+          setTokenLibrary(nextLibrary);
+          setTokenFolders(nextFolders);
+          setTokens(nextTokens);
         },
         onRejected: (reason) => {
           conn.current?.close();
@@ -75,6 +93,9 @@ export function useTable() {
     scene,
     library,
     folders,
+    tokenLibrary,
+    tokenFolders,
+    tokens,
     theme,
     toggleTheme,
     defaultName: loadDisplayName(),

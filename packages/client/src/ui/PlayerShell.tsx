@@ -1,5 +1,5 @@
-import type { Presence, ScenePublic } from "@p2evtt/shared";
-import { MapViewport } from "../game/MapViewport";
+import type { PlacedToken, Presence, ScenePublic, TokenPrototype } from "@p2evtt/shared";
+import { MapViewport, toMapTokens } from "../game/MapViewport";
 import type { Theme } from "../theme";
 import { Dock } from "./Dock";
 import { PartyIcon, SheetIcon } from "./dockIcons";
@@ -10,11 +10,21 @@ type Props = {
   you: Presence;
   players: Presence[];
   scene: ScenePublic;
+  tokenLibrary: TokenPrototype[];
+  tokens: PlacedToken[];
   theme: Theme;
   onToggleTheme: () => void;
 };
 
-export function PlayerShell({ you, players, scene, theme, onToggleTheme }: Props) {
+export function PlayerShell({
+  you,
+  players,
+  scene,
+  tokenLibrary,
+  tokens,
+  theme,
+  onToggleTheme,
+}: Props) {
   return (
     <TableShell
       role="player"
@@ -52,7 +62,13 @@ export function PlayerShell({ you, players, scene, theme, onToggleTheme }: Props
           ]}
         />
       }
-      map={<MapViewport key={scene.id} backgroundUrl={scene.backgroundUrl} />}
+      map={
+        <MapViewport
+          key={scene.id}
+          backgroundUrl={scene.backgroundUrl}
+          tokens={toMapTokens(tokens, tokenLibrary, scene.id)}
+        />
+      }
     />
   );
 }

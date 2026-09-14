@@ -25,6 +25,32 @@ export type SceneSummary = ScenePublic & {
   folderId: string | null;
 };
 
+export const TOKEN_SIZES = ["tiny", "small", "medium", "large", "huge", "gargantuan"] as const;
+export type TokenSize = (typeof TOKEN_SIZES)[number];
+
+export type TokenPrototype = {
+  id: string;
+  name: string;
+  folderId: string | null;
+  imageUrl: string | null;
+  size: TokenSize;
+  version: number;
+};
+
+export type PlacedToken = {
+  id: string;
+  prototypeId: string;
+  sceneId: string;
+  x: number;
+  y: number;
+};
+
+export type TokenSnapshot = {
+  tokenLibrary: TokenPrototype[];
+  tokenFolders: LibraryFolder[];
+  tokens: PlacedToken[];
+};
+
 export type ClientMsg =
   | {
       type: "hello";
@@ -44,6 +70,9 @@ export type ServerMsg =
       scene: ScenePublic;
       library: SceneSummary[];
       folders: LibraryFolder[];
+      tokenLibrary: TokenPrototype[];
+      tokenFolders: LibraryFolder[];
+      tokens: PlacedToken[];
     }
   | { type: "hello.rejected"; reason: string }
   | { type: "presence"; players: Presence[] }
@@ -52,6 +81,12 @@ export type ServerMsg =
       scene: ScenePublic;
       library: SceneSummary[];
       folders: LibraryFolder[];
+    }
+  | {
+      type: "tokens.updated";
+      tokenLibrary: TokenPrototype[];
+      tokenFolders: LibraryFolder[];
+      tokens: PlacedToken[];
     }
   | { type: "hb.pong" }
   | { type: "error"; message: string };
@@ -103,6 +138,9 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
       scene?: unknown;
       library?: unknown;
       folders?: unknown;
+      tokenLibrary?: unknown;
+      tokenFolders?: unknown;
+      tokens?: unknown;
     };
     if (typeof m.sessionToken !== "string") return null;
     const you = parsePresence(m.you);
@@ -110,7 +148,8 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
     const scene = parseScene(m.scene);
     const library = parseLibrary(m.library);
     const folders = parseFolders(m.folders);
-    if (!you || !players || !scene || !library || !folders) return null;
+    const tokens = parseTokenSnapshot(m);
+    if (!you || !players || !scene || !library || !folders || !tokens) return null;
     return {
       type: "hello.ok",
       sessionToken: m.sessionToken,
@@ -119,6 +158,7 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
       scene,
       library,
       folders,
+      ...tokens,
     };
   }
   if (msg.type === "presence") {
@@ -133,6 +173,11 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
     const folders = parseFolders(m.folders);
     if (!scene || !library || !folders) return null;
     return { type: "scene.updated", scene, library, folders };
+  }
+  if (msg.type === "tokens.updated") {
+    const tokens = parseTokenSnapshot(raw);
+    if (!tokens) return null;
+    return { type: "tokens.updated", ...tokens };
   }
   return null;
 }
@@ -198,4 +243,66 @@ function parseFolders(raw: unknown): LibraryFolder[] | null {
     if (f.parentId !== null && typeof f.parentId !== "string") return null;
     return { id: f.id, name: f.name, parentId: f.parentId };
   });
+}
+
+function parseTokenSize(raw: unknown): TokenSize | null {
+  if (typeof raw !== "string") return null;
+  return (TOKEN_SIZES as readonly string[]).includes(raw) ? (raw as TokenSize) : null;
+}
+
+function parseTokenPrototype(raw: unknown): TokenPrototype | null {
+  if (!raw || typeof raw !== "object") return null;
+  const t = raw as {
+    id?: unknown;
+    name?: unknown;
+    folderId?: unknown;
+    imageUrl?: unknown;
+    size?: unknown;
+    version?: unknown;
+  };
+  const size = parseTokenSize(t.size);
+  if (typeof t.id !== "string" || typeof t.name !== "string" || typeof t.version !== "number" || !size) {
+    return null;
+  }
+  if (t.folderId !== null && typeof t.folderId !== "string") return null;
+  if (t.imageUrl !== null && typeof t.imageUrl !== "string") return null;
+  return {
+    id: t.id,
+    name: t.name,
+    folderId: t.folderId,
+    imageUrl: t.imageUrl,
+    size,
+    version: t.version,
+  };
+}
+
+function parsePlacedToken(raw: unknown): PlacedToken | null {
+  if (!raw || typeof raw !== "object") return null;
+  const t = raw as {
+    id?: unknown;
+    prototypeId?: unknown;
+    sceneId?: unknown;
+    x?: unknown;
+    y?: unknown;
+  };
+  if (
+    typeof t.id !== "string" ||
+    typeof t.prototypeId !== "string" ||
+    typeof t.sceneId !== "string" ||
+    typeof t.x !== "number" ||
+    typeof t.y !== "number"
+  ) {
+    return null;
+  }
+  return { id: t.id, prototypeId: t.prototypeId, sceneId: t.sceneId, x: t.x, y: t.y };
+}
+
+function parseTokenSnapshot(raw: unknown): TokenSnapshot | null {
+  if (!raw || typeof raw !== "object") return null;
+  const t = raw as { tokenLibrary?: unknown; tokenFolders?: unknown; tokens?: unknown };
+  const tokenLibrary = parseArray(t.tokenLibrary, parseTokenPrototype);
+  const tokenFolders = parseFolders(t.tokenFolders);
+  const tokens = parseArray(t.tokens, parsePlacedToken);
+  if (!tokenLibrary || !tokenFolders || !tokens) return null;
+  return { tokenLibrary, tokenFolders, tokens };
 }

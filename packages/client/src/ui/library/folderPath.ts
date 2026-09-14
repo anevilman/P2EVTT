@@ -1,4 +1,4 @@
-import type { LibraryFolder, SceneSummary } from "@p2evtt/shared";
+import type { LibraryFolder } from "@p2evtt/shared";
 import type { Selection } from "./LibraryTree";
 
 export function folderPath(folders: LibraryFolder[], id: string): string {
@@ -15,10 +15,13 @@ export function folderPath(folders: LibraryFolder[], id: string): string {
   return parts.join(" / ");
 }
 
-export function targetFolderId(selection: Selection, library: SceneSummary[]): string | null {
+export function targetFolderId(
+  selection: Selection,
+  items: { id: string; folderId: string | null }[],
+): string | null {
   if (selection.kind === "folder") return selection.id;
   if (selection.kind === "item") {
-    return library.find((s) => s.id === selection.id)?.folderId ?? null;
+    return items.find((s) => s.id === selection.id)?.folderId ?? null;
   }
   return null;
 }

@@ -14,6 +14,9 @@ export function App() {
         scene={table.scene}
         library={table.library}
         folders={table.folders}
+        tokenLibrary={table.tokenLibrary}
+        tokenFolders={table.tokenFolders}
+        tokens={table.tokens}
         sessionToken={table.session.sessionToken}
         theme={table.theme}
         onToggleTheme={table.toggleTheme}
@@ -26,6 +29,8 @@ export function App() {
         you={table.session.you}
         players={table.players}
         scene={table.scene}
+        tokenLibrary={table.tokenLibrary}
+        tokens={table.tokens}
         theme={table.theme}
         onToggleTheme={table.toggleTheme}
       />
