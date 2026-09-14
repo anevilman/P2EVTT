@@ -1,27 +1,34 @@
 import { useState } from "react";
-import { TOKEN_SIZES, type LibraryFolder, type TokenPrototype, type TokenSize } from "@p2evtt/shared";
+import { TOKEN_SIZES, type LibraryFolder, type Presence, type TokenPrototype, type TokenSize } from "@p2evtt/shared";
 import { gmFetch } from "../net/gmApi";
-import { folderPath, targetFolderId } from "./library/folderPath";
+import { AssignedToSelect } from "./AssignedToSelect";
+import { folderAndDescendants, folderPath, targetFolderId } from "./library/folderPath";
 import { LibraryTree, type Selection } from "./library/LibraryTree";
+
+export type PlaceKind = "off" | "one" | "all";
 
 type Props = {
   sessionToken: string;
   library: TokenPrototype[];
   folders: LibraryFolder[];
+  players: Presence[];
   selection: Selection;
   onSelect: (selection: Selection) => void;
-  placeMode: boolean;
+  placeKind: PlaceKind;
   onTogglePlace: () => void;
+  onTogglePlaceAll: () => void;
 };
 
 export function TokenLibrary({
   sessionToken,
   library,
   folders,
+  players,
   selection,
   onSelect,
-  placeMode,
+  placeKind,
   onTogglePlace,
+  onTogglePlaceAll,
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -39,6 +46,11 @@ export function TokenLibrary({
 
   const selected = selection.kind === "item" ? library.find((t) => t.id === selection.id) : null;
   const folderId = targetFolderId(selection, library);
+  const addAllFolderId = selection.kind === "folder" ? selection.id : selection.kind === "root" ? null : undefined;
+  const addAllCount =
+    addAllFolderId === undefined
+      ? 0
+      : library.filter((t) => folderAndDescendants(folders, addAllFolderId).has(t.folderId)).length;
 
   const commitRename = (id: string) => {
     const name = draft.trim();
@@ -172,6 +184,19 @@ export function TokenLibrary({
                 ))}
             </select>
           </label>
+          <AssignedToSelect
+            label="Assigned to (new placements)"
+            value={selected.controlledBy}
+            players={players}
+            onChange={(name) => {
+              void run("Updating…", () =>
+                gmFetch(`/api/token-prototypes/${selected.id}`, sessionToken, {
+                  method: "PATCH",
+                  body: JSON.stringify({ controlledBy: name }),
+                }).then(() => undefined),
+              );
+            }}
+          />
           <label className="folder-move">
             Default size (new placements)
             <select
@@ -195,12 +220,23 @@ export function TokenLibrary({
           <TokenArtButton onFile={onArt} />
           <button
             type="button"
-            className={placeMode ? "file-btn play-btn" : "file-btn"}
+            className={placeKind === "one" ? "file-btn play-btn" : "file-btn"}
             onClick={onTogglePlace}
           >
-            {placeMode ? "Click the map to place…" : "Place on map"}
+            {placeKind === "one" ? "Click the map to place…" : "Place on map"}
           </button>
         </>
+      ) : null}
+      {addAllCount > 0 ? (
+        <button
+          type="button"
+          className={placeKind === "all" ? "file-btn play-btn" : "file-btn"}
+          onClick={onTogglePlaceAll}
+        >
+          {placeKind === "all"
+            ? "Click the map to place all…"
+            : `Add all (${addAllCount})`}
+        </button>
       ) : null}
       {status ? (
         <p className="meta">{status}</p>

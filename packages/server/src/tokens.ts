@@ -20,6 +20,7 @@ type ProtoRecord = {
   version: number;
   size: TokenSize;
   usesFixture: boolean;
+  controlledBy: string | null;
 };
 
 type FolderRecord = {
@@ -60,7 +61,10 @@ export class TokenStore {
     if (existsSync(this.statePath)) {
       const raw = JSON.parse(await readFile(this.statePath, "utf8")) as DiskState;
       this.folders = raw.folders ?? [];
-      this.prototypes = raw.prototypes ?? [];
+      this.prototypes = (raw.prototypes ?? []).map((p) => ({
+        ...p,
+        controlledBy: normalizeControllerName(p.controlledBy),
+      }));
       this.placed = (raw.placed ?? []).map((t) => ({
         ...t,
         size:
@@ -80,6 +84,7 @@ export class TokenStore {
           version: 1,
           size: "medium",
           usesFixture: true,
+          controlledBy: null,
         },
       ];
       await this.persist();
@@ -107,6 +112,7 @@ export class TokenStore {
       version: 1,
       size: "medium",
       usesFixture: false,
+      controlledBy: null,
     };
     this.prototypes.push(record);
     await this.persist();
@@ -137,6 +143,12 @@ export class TokenStore {
 
   async setSize(id: string, size: TokenSize): Promise<TokenSnapshot> {
     this.requireProto(id).size = size;
+    await this.persist();
+    return this.snapshot();
+  }
+
+  async setPrototypeControlledBy(id: string, name: string | null): Promise<TokenSnapshot> {
+    this.requireProto(id).controlledBy = normalizeControllerName(name);
     await this.persist();
     return this.snapshot();
   }
@@ -216,8 +228,30 @@ export class TokenStore {
       x,
       y,
       size: proto.size,
-      controlledBy: null,
+      controlledBy: proto.controlledBy,
     });
+    await this.persist();
+    return this.snapshot();
+  }
+
+  async placeMany(
+    sceneId: string,
+    placements: { prototypeId: string; x: number; y: number }[],
+  ): Promise<TokenSnapshot> {
+    if (placements.length < 1) throw new Error("Nothing to place.");
+    for (const p of placements) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) throw new Error("x and y must be numbers.");
+      const proto = this.requireProto(p.prototypeId);
+      this.placed.push({
+        id: randomUUID(),
+        prototypeId: proto.id,
+        sceneId,
+        x: p.x,
+        y: p.y,
+        size: proto.size,
+        controlledBy: proto.controlledBy,
+      });
+    }
     await this.persist();
     return this.snapshot();
   }
@@ -269,6 +303,7 @@ export class TokenStore {
       imageUrl: hasImage ? `/media/tokens/${record.id}?v=${record.version}` : null,
       size: record.size,
       version: record.version,
+      controlledBy: record.controlledBy ?? null,
     };
   }
 

@@ -40,6 +40,7 @@ export type TokenPrototype = {
   imageUrl: string | null;
   size: TokenSize;
   version: number;
+  controlledBy: string | null;
 };
 
 export type PlacedToken = {
@@ -267,6 +268,7 @@ function parseTokenPrototype(raw: unknown): TokenPrototype | null {
     imageUrl?: unknown;
     size?: unknown;
     version?: unknown;
+    controlledBy?: unknown;
   };
   const size = parseTokenSize(t.size);
   if (typeof t.id !== "string" || typeof t.name !== "string" || typeof t.version !== "number" || !size) {
@@ -274,6 +276,9 @@ function parseTokenPrototype(raw: unknown): TokenPrototype | null {
   }
   if (t.folderId !== null && typeof t.folderId !== "string") return null;
   if (t.imageUrl !== null && typeof t.imageUrl !== "string") return null;
+  if (t.controlledBy !== null && t.controlledBy !== undefined && typeof t.controlledBy !== "string") {
+    return null;
+  }
   return {
     id: t.id,
     name: t.name,
@@ -281,6 +286,7 @@ function parseTokenPrototype(raw: unknown): TokenPrototype | null {
     imageUrl: t.imageUrl,
     size,
     version: t.version,
+    controlledBy: typeof t.controlledBy === "string" && t.controlledBy.trim() ? t.controlledBy.trim() : null,
   };
 }
 

@@ -127,12 +127,16 @@ export async function registerRoutes(
     "/api/token-prototypes/:id",
     gmHandler(table, "Could not update token", async (req) => {
       const id = idParam(req);
-      const body = (req.body as { name?: unknown; folderId?: unknown; size?: unknown } | null) ?? {};
+      const body = (req.body as { name?: unknown; folderId?: unknown; size?: unknown; controlledBy?: unknown } | null) ?? {};
       let snap = tokens.snapshot();
       const folderId = optionalId(body.folderId);
       if (folderId !== undefined) snap = await tokens.movePrototype(id, folderId);
       if (typeof body.name === "string") snap = await tokens.renamePrototype(id, body.name);
       if (body.size !== undefined) snap = await tokens.setSize(id, asSize(body.size));
+      if (body.controlledBy !== undefined) {
+        const raw = body.controlledBy;
+        snap = await tokens.setPrototypeControlledBy(id, raw === null || raw === "" ? null : String(raw));
+      }
       return publishTokens(table, snap);
     }),
   );
@@ -188,6 +192,26 @@ export async function registerRoutes(
       const y = Number(body.y);
       if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error("x and y must be numbers.");
       return publishTokens(table, await tokens.place(body.prototypeId, body.sceneId, x, y));
+    }),
+  );
+
+  app.post(
+    "/api/placed/batch",
+    gmHandler(table, "Could not place tokens", async (req) => {
+      const body = (req.body as { sceneId?: unknown; placements?: unknown } | null) ?? {};
+      if (typeof body.sceneId !== "string") throw new Error("sceneId is required.");
+      if (!Array.isArray(body.placements)) throw new Error("placements is required.");
+      const placements: { prototypeId: string; x: number; y: number }[] = [];
+      for (const item of body.placements) {
+        if (!item || typeof item !== "object") throw new Error("Invalid placement.");
+        const p = item as { prototypeId?: unknown; x?: unknown; y?: unknown };
+        if (typeof p.prototypeId !== "string") throw new Error("prototypeId is required.");
+        const x = Number(p.x);
+        const y = Number(p.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error("x and y must be numbers.");
+        placements.push({ prototypeId: p.prototypeId, x, y });
+      }
+      return publishTokens(table, await tokens.placeMany(body.sceneId, placements));
     }),
   );
 

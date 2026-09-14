@@ -10,17 +10,20 @@ import {
   type TokenPrototype,
   type TokenSize,
 } from "@p2evtt/shared";
+import { TOKEN_PX } from "../game/tokenSize";
 import { MapViewport, toMapTokens } from "../game/MapViewport";
 import { gmFetch } from "../net/gmApi";
 import type { Theme } from "../theme";
+import { AssignedToSelect } from "./AssignedToSelect";
 import { Dock } from "./Dock";
 import { InspectIcon, ScenesIcon, TokensIcon } from "./dockIcons";
+import { folderAndDescendants } from "./library/folderPath";
 import type { Selection } from "./library/LibraryTree";
 import { MapUpload } from "./MapUpload";
 import { PresenceList } from "./PresenceList";
 import { SceneLibrary } from "./SceneLibrary";
 import { TableShell } from "./TableShell";
-import { TokenLibrary } from "./TokenLibrary";
+import { TokenLibrary, type PlaceKind } from "./TokenLibrary";
 
 type Props = {
   you: Presence;
@@ -51,7 +54,7 @@ export function GmShell({
 }: Props) {
   const [selection, setSelection] = useState<Selection>({ kind: "item", id: scene.id });
   const [tokenSel, setTokenSel] = useState<Selection>({ kind: "root" });
-  const [placeMode, setPlaceMode] = useState(false);
+  const [placeKind, setPlaceKind] = useState<PlaceKind>("off");
   const [selectedPlacedId, setSelectedPlacedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -70,7 +73,31 @@ export function GmShell({
     tokenSel.kind === "item" ? tokenLibrary.find((t) => t.id === tokenSel.id) : null;
   const selectedPlaced = tokens.find((t) => t.id === selectedPlacedId) ?? null;
 
+  const tokensInScope = () => {
+    const folderId = tokenSel.kind === "folder" ? tokenSel.id : tokenSel.kind === "root" ? null : undefined;
+    if (folderId === undefined) return [];
+    const scope = folderAndDescendants(tokenFolders, folderId);
+    return tokenLibrary.filter((t) => scope.has(t.folderId));
+  };
+
   const placeOn = async (x: number, y: number) => {
+    if (placeKind === "all") {
+      const list = tokensInScope();
+      let cursor = x;
+      const placements = list.map((proto) => {
+        const at = { prototypeId: proto.id, x: cursor, y };
+        cursor += TOKEN_PX[proto.size] * 1.1;
+        return at;
+      });
+      if (placements.length > 0) {
+        await gmFetch("/api/placed/batch", sessionToken, {
+          method: "POST",
+          body: JSON.stringify({ sceneId: selectedScene.id, placements }),
+        });
+      }
+      setPlaceKind("off");
+      return;
+    }
     if (!selectedProto) return;
     await gmFetch("/api/placed", sessionToken, {
       method: "POST",
@@ -81,7 +108,7 @@ export function GmShell({
         y,
       }),
     });
-    setPlaceMode(false);
+    setPlaceKind("off");
   };
 
   return (
@@ -125,15 +152,19 @@ export function GmShell({
                   sessionToken={sessionToken}
                   library={tokenLibrary}
                   folders={tokenFolders}
+                  players={players}
                   selection={tokenSel}
                   onSelect={(next) => {
                     setTokenSel(next);
-                    setPlaceMode(false);
+                    setPlaceKind("off");
                   }}
-                  placeMode={placeMode}
+                  placeKind={placeKind}
                   onTogglePlace={() => {
                     if (!selectedProto) return;
-                    setPlaceMode((v) => !v);
+                    setPlaceKind((k) => (k === "one" ? "off" : "one"));
+                  }}
+                  onTogglePlaceAll={() => {
+                    setPlaceKind((k) => (k === "all" ? "off" : "all"));
                   }}
                 />
               ),
@@ -173,9 +204,15 @@ export function GmShell({
             backgroundUrl={selectedScene.backgroundUrl}
             tokens={toMapTokens(tokens, tokenLibrary, selectedScene.id, you.displayName, true)}
             grid={selectedScene.grid}
-            placeSpan={selectedProto ? tokenSpan(selectedProto.size) : 1}
+            placeSpan={
+              placeKind === "all"
+                ? 1
+                : selectedProto
+                  ? tokenSpan(selectedProto.size)
+                  : 1
+            }
             canEdit
-            placeMode={placeMode}
+            placeMode={placeKind !== "off"}
             selectedTokenId={selectedPlacedId}
             onSelectToken={setSelectedPlacedId}
             onMoveToken={(id, x, y) => {
@@ -205,14 +242,6 @@ function PlacedInspect({
   sessionToken: string;
   players: Presence[];
 }) {
-  const names = [
-    ...new Set(
-      [
-        ...players.filter((p) => p.role === "player").map((p) => p.displayName),
-        token.controlledBy,
-      ].filter((n): n is string => Boolean(n)),
-    ),
-  ];
   return (
     <div>
       <p>
@@ -221,25 +250,16 @@ function PlacedInspect({
       <p className="meta">
         {Math.round(token.x)}, {Math.round(token.y)}
       </p>
-      <label className="folder-move">
-        Controlled by
-        <select
-          value={token.controlledBy ?? ""}
-          onChange={(e) => {
-            void gmFetch(`/api/placed/${token.id}`, sessionToken, {
-              method: "PATCH",
-              body: JSON.stringify({ controlledBy: e.target.value === "" ? null : e.target.value }),
-            });
-          }}
-        >
-          <option value="">Unassigned (GM only)</option>
-          {names.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </label>
+      <AssignedToSelect
+        value={token.controlledBy}
+        players={players}
+        onChange={(name) => {
+          void gmFetch(`/api/placed/${token.id}`, sessionToken, {
+            method: "PATCH",
+            body: JSON.stringify({ controlledBy: name }),
+          });
+        }}
+      />
       <label className="folder-move">
         Size
         <select

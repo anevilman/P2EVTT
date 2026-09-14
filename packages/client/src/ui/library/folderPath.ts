@@ -25,3 +25,23 @@ export function targetFolderId(
   }
   return null;
 }
+
+/** Root (null) is only the root itself. A folder includes nested folders. */
+export function folderAndDescendants(
+  folders: LibraryFolder[],
+  rootId: string | null,
+): Set<string | null> {
+  if (rootId === null) return new Set([null]);
+  const ids = new Set<string | null>([rootId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const folder of folders) {
+      if (folder.parentId !== null && ids.has(folder.parentId) && !ids.has(folder.id)) {
+        ids.add(folder.id);
+        grew = true;
+      }
+    }
+  }
+  return ids;
+}
