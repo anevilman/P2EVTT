@@ -3,7 +3,6 @@ import type { Presence } from "@p2evtt/shared";
 import { connectTable, type TableSession } from "./net/socket";
 import type { ClientMsg } from "@p2evtt/shared";
 import {
-  clearSessionToken,
   loadDisplayName,
   loadSessionToken,
   saveDisplayName,
@@ -22,7 +21,7 @@ export function App() {
   const [session, setSession] = useState<TableSession | null>(null);
   const [players, setPlayers] = useState<Presence[]>([]);
 
-  const join = (displayName: string) => {
+  const join = (displayName: string, wantGm: boolean) => {
     if (displayName.length < 1) return;
     saveDisplayName(displayName);
     setBusy(true);
@@ -30,6 +29,7 @@ export function App() {
     conn.current?.close();
     conn.current = connectTable({
       displayName,
+      wantGm,
       sessionToken: loadSessionToken(),
       handlers: {
         onHello: (next) => {
@@ -40,7 +40,8 @@ export function App() {
         },
         onPresence: (list) => setPlayers(list),
         onRejected: (reason) => {
-          clearSessionToken();
+          conn.current?.close();
+          conn.current = null;
           setBusy(false);
           setError(reason);
         },

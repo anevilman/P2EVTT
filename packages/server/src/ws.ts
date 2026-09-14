@@ -1,19 +1,12 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import websocket from "@fastify/websocket";
 import { parseClientMsg, PROTOCOL_VERSION } from "@p2evtt/shared";
 import { Table } from "./table";
 
-function isLoopback(req: FastifyRequest): boolean {
-  const ips = [req.ip, req.socket.remoteAddress];
-  return ips.some(
-    (ip) => ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1",
-  );
-}
-
 export async function registerWs(app: FastifyInstance, table: Table): Promise<void> {
   await app.register(websocket);
 
-  app.get("/ws", { websocket: true }, (socket, req) => {
+  app.get("/ws", { websocket: true }, (socket) => {
     socket.on("message", (raw) => {
       let parsed: unknown;
       try {
@@ -44,8 +37,8 @@ export async function registerWs(app: FastifyInstance, table: Table): Promise<vo
         }
         const result = table.sit({
           displayName: msg.displayName,
+          wantGm: msg.wantGm,
           sessionToken: msg.sessionToken,
-          loopback: isLoopback(req),
           socket,
         });
         if ("reject" in result) {

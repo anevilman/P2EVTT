@@ -45,13 +45,20 @@ async function main() {
 
   const app = Fastify({ logger: true });
 
+  const table = new Table();
+
   app.get("/api/health", async () => ({
     ok: true,
     name: APP_NAME,
     version: APP_VERSION,
   }));
 
-  const table = new Table();
+  app.get("/api/table", async () => ({
+    hasGm: table.hasGm(),
+    gmName: table.gmName(),
+    seated: table.list().length,
+  }));
+
   await registerWs(app, table);
 
   await app.register(middie);

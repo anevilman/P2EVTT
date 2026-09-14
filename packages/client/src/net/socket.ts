@@ -22,6 +22,7 @@ type Handlers = {
 
 export function connectTable(opts: {
   displayName: string;
+  wantGm: boolean;
   sessionToken?: string | null;
   handlers: Handlers;
 }): { send: (msg: ClientMsg) => void; close: () => void } {
@@ -38,6 +39,7 @@ export function connectTable(opts: {
       type: "hello",
       protocolVersion: PROTOCOL_VERSION,
       displayName: opts.displayName,
+      wantGm: opts.wantGm,
       sessionToken: opts.sessionToken ?? undefined,
     });
     heartbeat = window.setInterval(() => send({ type: "hb.ping" }), 15_000);

@@ -16,10 +16,10 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://127.0.0.1:7788](http://127.0.0.1:7788) in a browser. Enter a name and sit down.
+Open [http://127.0.0.1:7788](http://127.0.0.1:7788) in a browser. Enter a name, then **Join as player** or **I'm the GM**.
 
-- The **host’s first browser tab** is the GM.
-- Extra tabs on the same machine, or friends opening the URL, are players.
+- Players can sit before anyone claims GM.
+- The first person to click **I'm the GM** gets that seat; everyone else sees it taken.
 - Players do not install anything. They just use a browser.
 - Display name and session are kept in the browser’s localStorage.
 

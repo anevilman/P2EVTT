@@ -90,15 +90,27 @@ h1 {
   padding: 0.55rem 0.7rem;
 }
 
+.join-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .join button {
+  flex: 1;
   font: inherit;
   cursor: pointer;
-  color: #1a160f;
-  background: var(--accent);
-  border: 0;
+  color: var(--ink);
+  background: #1c1a17;
+  border: 1px solid #3a352c;
   border-radius: 4px;
   padding: 0.6rem 0.8rem;
   font-weight: 600;
+}
+
+.join button.gm-claim {
+  color: #1a160f;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .join button:disabled {

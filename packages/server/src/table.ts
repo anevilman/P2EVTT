@@ -25,10 +25,15 @@ export class Table {
     return this.seats.get(token);
   }
 
+  gmName(): string | null {
+    const gm = [...this.seats.values()].find((s) => s.role === "gm");
+    return gm?.displayName ?? null;
+  }
+
   sit(opts: {
     displayName: string;
+    wantGm: boolean;
     sessionToken?: string;
-    loopback: boolean;
     socket: WebSocket;
   }): { seat: Seat } | { reject: string } {
     const name = opts.displayName.trim();
@@ -38,6 +43,9 @@ export class Table {
     if (opts.sessionToken) {
       const existing = this.seats.get(opts.sessionToken);
       if (existing) {
+        if (opts.wantGm && existing.role !== "gm" && this.hasGm()) {
+          return { reject: "Someone is already the GM." };
+        }
         if (existing.socket && existing.socket !== opts.socket) {
           try {
             existing.socket.close(4000, "taken over by another tab");
@@ -47,16 +55,22 @@ export class Table {
         }
         existing.socket = opts.socket;
         existing.displayName = uniqueName(name, this.seats, opts.sessionToken);
+        if (opts.wantGm && existing.role !== "gm" && !this.hasGm()) {
+          existing.role = "gm";
+        }
         return { seat: existing };
       }
     }
 
+    if (opts.wantGm && this.hasGm()) {
+      return { reject: "Someone is already the GM." };
+    }
+
     const sessionToken = randomUUID();
-    const role: Role = !this.hasGm() && opts.loopback ? "gm" : "player";
     const seat: Seat = {
       id: randomUUID(),
       displayName: uniqueName(name, this.seats),
-      role,
+      role: opts.wantGm ? "gm" : "player",
       sessionToken,
       socket: opts.socket,
     };

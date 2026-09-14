@@ -9,7 +9,13 @@ export type Presence = {
 };
 
 export type ClientMsg =
-  | { type: "hello"; protocolVersion: number; displayName: string; sessionToken?: string }
+  | {
+      type: "hello";
+      protocolVersion: number;
+      displayName: string;
+      wantGm: boolean;
+      sessionToken?: string;
+    }
   | { type: "hb.ping" };
 
 export type ServerMsg =
@@ -27,14 +33,17 @@ export function parseClientMsg(raw: unknown): ClientMsg | null {
     const m = raw as {
       protocolVersion?: unknown;
       displayName?: unknown;
+      wantGm?: unknown;
       sessionToken?: unknown;
     };
     if (typeof m.protocolVersion !== "number" || typeof m.displayName !== "string") return null;
+    if (m.wantGm !== undefined && typeof m.wantGm !== "boolean") return null;
     if (m.sessionToken !== undefined && typeof m.sessionToken !== "string") return null;
     return {
       type: "hello",
       protocolVersion: m.protocolVersion,
       displayName: m.displayName,
+      wantGm: m.wantGm === true,
       sessionToken: m.sessionToken,
     };
   }
