@@ -56,9 +56,9 @@ export function useTable() {
           setSession(next);
           setPlayers(next.players);
           applySnapshot(next);
-          setTokenLibrary(next.tokenLibrary);
-          setTokenFolders(next.tokenFolders);
-          setTokens(next.tokens);
+          setTokenLibrary(next.tokenLibrary ?? []);
+          setTokenFolders(next.tokenFolders ?? []);
+          setTokens(next.tokens ?? []);
           setBusy(false);
         },
         onPresence: (list) => setPlayers(list),
@@ -66,9 +66,9 @@ export function useTable() {
           applySnapshot({ scene: next, library: nextLibrary, folders: nextFolders });
         },
         onTokens: (nextLibrary, nextFolders, nextTokens) => {
-          setTokenLibrary(nextLibrary);
-          setTokenFolders(nextFolders);
-          setTokens(nextTokens);
+          setTokenLibrary(nextLibrary ?? []);
+          setTokenFolders(nextFolders ?? []);
+          setTokens(nextTokens ?? []);
         },
         onRejected: (reason) => {
           conn.current?.close();

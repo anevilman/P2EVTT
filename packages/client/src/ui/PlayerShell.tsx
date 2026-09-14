@@ -20,8 +20,8 @@ export function PlayerShell({
   you,
   players,
   scene,
-  tokenLibrary,
-  tokens,
+  tokenLibrary = [],
+  tokens = [],
   theme,
   onToggleTheme,
 }: Props) {
