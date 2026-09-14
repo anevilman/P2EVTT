@@ -171,7 +171,7 @@ export function GmShell({
           <MapViewport
             key={selectedScene.id}
             backgroundUrl={selectedScene.backgroundUrl}
-            tokens={toMapTokens(tokens, tokenLibrary, selectedScene.id, you.id, true)}
+            tokens={toMapTokens(tokens, tokenLibrary, selectedScene.id, you.displayName, true)}
             grid={selectedScene.grid}
             placeSpan={selectedProto ? tokenSpan(selectedProto.size) : 1}
             canEdit
@@ -205,11 +205,14 @@ function PlacedInspect({
   sessionToken: string;
   players: Presence[];
 }) {
-  const seatedPlayers = players.filter((p) => p.role === "player");
-  const missing =
-    token.controllerId && !players.some((p) => p.id === token.controllerId)
-      ? token.controllerId
-      : null;
+  const names = [
+    ...new Set(
+      [
+        ...players.filter((p) => p.role === "player").map((p) => p.displayName),
+        token.controlledBy,
+      ].filter((n): n is string => Boolean(n)),
+    ),
+  ];
   return (
     <div>
       <p>
@@ -221,23 +224,20 @@ function PlacedInspect({
       <label className="folder-move">
         Controlled by
         <select
-          value={token.controllerId ?? ""}
+          value={token.controlledBy ?? ""}
           onChange={(e) => {
             void gmFetch(`/api/placed/${token.id}`, sessionToken, {
               method: "PATCH",
-              body: JSON.stringify({ controllerId: e.target.value === "" ? null : e.target.value }),
+              body: JSON.stringify({ controlledBy: e.target.value === "" ? null : e.target.value }),
             });
           }}
         >
           <option value="">Unassigned (GM only)</option>
-          {seatedPlayers.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.displayName}
+          {names.map((n) => (
+            <option key={n} value={n}>
+              {n}
             </option>
           ))}
-          {missing ? (
-            <option value={missing}>Offline player</option>
-          ) : null}
         </select>
       </label>
       <label className="folder-move">

@@ -28,8 +28,9 @@ type FolderRecord = {
   parentId: string | null;
 };
 
-type PlacedRecord = Omit<PlacedToken, "size" | "controllerId"> & {
+type PlacedRecord = Omit<PlacedToken, "size" | "controlledBy"> & {
   size?: TokenSize;
+  controlledBy?: string | null;
   controllerId?: string | null;
 };
 
@@ -66,7 +67,7 @@ export class TokenStore {
           t.size ??
           this.prototypes.find((p) => p.id === t.prototypeId)?.size ??
           "medium",
-        controllerId: t.controllerId ?? null,
+        controlledBy: normalizeControllerName(t.controlledBy ?? t.controllerId),
       }));
     }
     if (this.prototypes.length < 1) {
@@ -215,7 +216,7 @@ export class TokenStore {
       x,
       y,
       size: proto.size,
-      controllerId: null,
+      controlledBy: null,
     });
     await this.persist();
     return this.snapshot();
@@ -223,14 +224,14 @@ export class TokenStore {
 
   async updatePlaced(
     id: string,
-    patch: { x?: number; y?: number; size?: TokenSize; controllerId?: string | null },
+    patch: { x?: number; y?: number; size?: TokenSize; controlledBy?: string | null },
   ): Promise<TokenSnapshot> {
     const token = this.placed.find((t) => t.id === id);
     if (!token) throw new Error("Unknown token.");
     if (patch.x !== undefined) token.x = patch.x;
     if (patch.y !== undefined) token.y = patch.y;
     if (patch.size !== undefined) token.size = patch.size;
-    if (patch.controllerId !== undefined) token.controllerId = patch.controllerId;
+    if (patch.controlledBy !== undefined) token.controlledBy = normalizeControllerName(patch.controlledBy);
     await this.persist();
     return this.snapshot();
   }
@@ -296,4 +297,12 @@ export class TokenStore {
     };
     await writeFile(this.statePath, JSON.stringify(state, null, 2), "utf8");
   }
+}
+
+function normalizeControllerName(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const name = value.trim();
+  if (name.length < 1) return null;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(name)) return null;
+  return name;
 }

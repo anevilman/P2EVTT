@@ -69,7 +69,7 @@ export function PlayerShell({
         <MapViewport
           key={scene.id}
           backgroundUrl={scene.backgroundUrl}
-          tokens={toMapTokens(tokens, tokenLibrary, scene.id, you.id, false)}
+          tokens={toMapTokens(tokens, tokenLibrary, scene.id, you.displayName, false)}
           grid={scene.grid}
           onMoveToken={(id, x, y) => {
             void gmFetch(`/api/placed/${id}`, sessionToken, {

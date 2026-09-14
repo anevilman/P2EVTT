@@ -365,7 +365,7 @@ export function toMapTokens(
   placed: PlacedToken[],
   prototypes: TokenPrototype[],
   sceneId: string,
-  youId: string,
+  youName: string,
   isGm: boolean,
 ): MapToken[] {
   return placed
@@ -377,7 +377,11 @@ export function toMapTokens(
         name: proto?.name ?? "Token",
         imageUrl: proto?.imageUrl ?? null,
         sizePx: TOKEN_PX[t.size ?? proto?.size ?? "medium"],
-        movable: isGm || t.controllerId === youId,
+        movable: isGm || namesMatch(t.controlledBy, youName),
       };
     });
+}
+
+function namesMatch(assigned: string | null | undefined, youName: string): boolean {
+  return Boolean(assigned && assigned.toLowerCase() === youName.trim().toLowerCase());
 }

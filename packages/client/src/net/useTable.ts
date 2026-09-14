@@ -9,7 +9,6 @@ import type {
 } from "@p2evtt/shared";
 import {
   loadDisplayName,
-  loadPlayerId,
   loadSessionToken,
   saveDisplayName,
   saveSessionToken,
@@ -51,7 +50,6 @@ export function useTable() {
       displayName,
       wantGm,
       sessionToken: loadSessionToken(),
-      playerId: loadPlayerId(),
       handlers: {
         onHello: (next) => {
           saveSessionToken(next.sessionToken);

@@ -196,17 +196,19 @@ export async function registerRoutes(
     if (!seat) return;
     const placed = tokens.getPlaced(idParam(req));
     if (!placed) return reply.code(404).send({ error: "Unknown token." });
-    const body = (req.body as { x?: unknown; y?: unknown; size?: unknown; controllerId?: unknown } | null) ?? {};
+    const body = (req.body as { x?: unknown; y?: unknown; size?: unknown; controlledBy?: unknown } | null) ?? {};
     const isGm = seat.role === "gm";
-    const isController = placed.controllerId === seat.id;
+    const isController =
+      typeof placed.controlledBy === "string" &&
+      placed.controlledBy.toLowerCase() === seat.displayName.toLowerCase();
     if (!isGm && !isController) {
       return reply.code(403).send({ error: "That token is not yours." });
     }
-    if (!isGm && (body.size !== undefined || body.controllerId !== undefined)) {
+    if (!isGm && (body.size !== undefined || body.controlledBy !== undefined)) {
       return reply.code(403).send({ error: "Only the GM can change size or control." });
     }
     try {
-      const patch: { x?: number; y?: number; size?: TokenSize; controllerId?: string | null } = {};
+      const patch: { x?: number; y?: number; size?: TokenSize; controlledBy?: string | null } = {};
       if (body.x !== undefined) {
         const x = Number(body.x);
         if (!Number.isFinite(x)) throw new Error("x must be a number.");
@@ -218,7 +220,10 @@ export async function registerRoutes(
         patch.y = y;
       }
       if (isGm && body.size !== undefined) patch.size = asSize(body.size);
-      if (isGm && body.controllerId !== undefined) patch.controllerId = optionalId(body.controllerId) ?? null;
+      if (isGm && body.controlledBy !== undefined) {
+        const raw = body.controlledBy;
+        patch.controlledBy = raw === null || raw === "" ? null : String(raw);
+      }
       return publishTokens(table, await tokens.updatePlaced(idParam(req), patch));
     } catch (err) {
       return reply.code(400).send({ error: errorMessage(err, "Could not update token") });

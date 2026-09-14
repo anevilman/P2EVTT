@@ -72,7 +72,6 @@ export function removeSession(key: string): void {
 
 const NAME_KEY = "p2evtt.displayName";
 const TOKEN_KEY = "p2evtt.sessionToken";
-const PLAYER_KEY = "p2evtt.playerId";
 
 export function loadDisplayName(): string {
   return readLocal(NAME_KEY) ?? "";
@@ -98,10 +97,4 @@ export function clearSessionToken(): void {
   removeLocal(TOKEN_KEY);
 }
 
-export function loadPlayerId(): string {
-  const existing = readSession(PLAYER_KEY);
-  if (existing) return existing;
-  const id = crypto.randomUUID();
-  writeSession(PLAYER_KEY, id);
-  return id;
-}
+

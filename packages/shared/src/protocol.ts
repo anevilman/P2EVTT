@@ -49,7 +49,7 @@ export type PlacedToken = {
   x: number;
   y: number;
   size: TokenSize;
-  controllerId: string | null;
+  controlledBy: string | null;
 };
 
 export type TokenSnapshot = {
@@ -65,7 +65,6 @@ export type ClientMsg =
       displayName: string;
       wantGm: boolean;
       sessionToken?: string;
-      playerId?: string;
     }
   | { type: "hb.ping" };
 
@@ -109,19 +108,16 @@ export function parseClientMsg(raw: unknown): ClientMsg | null {
       displayName?: unknown;
       wantGm?: unknown;
       sessionToken?: unknown;
-      playerId?: unknown;
     };
     if (typeof m.protocolVersion !== "number" || typeof m.displayName !== "string") return null;
     if (m.wantGm !== undefined && typeof m.wantGm !== "boolean") return null;
     if (m.sessionToken !== undefined && typeof m.sessionToken !== "string") return null;
-    if (m.playerId !== undefined && typeof m.playerId !== "string") return null;
     return {
       type: "hello",
       protocolVersion: m.protocolVersion,
       displayName: m.displayName,
       wantGm: m.wantGm === true,
       sessionToken: m.sessionToken,
-      playerId: m.playerId,
     };
   }
   return null;
@@ -297,6 +293,7 @@ function parsePlacedToken(raw: unknown): PlacedToken | null {
     x?: unknown;
     y?: unknown;
     size?: unknown;
+    controlledBy?: unknown;
     controllerId?: unknown;
   };
   const size = parseTokenSize(t.size);
@@ -310,9 +307,12 @@ function parsePlacedToken(raw: unknown): PlacedToken | null {
   ) {
     return null;
   }
-  if (t.controllerId !== null && t.controllerId !== undefined && typeof t.controllerId !== "string") {
-    return null;
-  }
+  const name =
+    typeof t.controlledBy === "string"
+      ? t.controlledBy
+      : typeof t.controllerId === "string" && !looksLikeId(t.controllerId)
+        ? t.controllerId
+        : null;
   return {
     id: t.id,
     prototypeId: t.prototypeId,
@@ -320,8 +320,12 @@ function parsePlacedToken(raw: unknown): PlacedToken | null {
     x: t.x,
     y: t.y,
     size,
-    controllerId: typeof t.controllerId === "string" ? t.controllerId : null,
+    controlledBy: name && name.length > 0 ? name : null,
   };
+}
+
+function looksLikeId(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
 function parseTokenSnapshot(raw: unknown): TokenSnapshot | null {
