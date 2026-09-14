@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   TOKEN_SIZES,
+  tokenSpan,
   type LibraryFolder,
   type PlacedToken,
   type Presence,
@@ -170,6 +171,8 @@ export function GmShell({
             key={selectedScene.id}
             backgroundUrl={selectedScene.backgroundUrl}
             tokens={toMapTokens(tokens, tokenLibrary, selectedScene.id)}
+            grid={selectedScene.grid}
+            placeSpan={selectedProto ? tokenSpan(selectedProto.size) : 1}
             canEdit
             placeMode={placeMode}
             selectedTokenId={selectedPlacedId}

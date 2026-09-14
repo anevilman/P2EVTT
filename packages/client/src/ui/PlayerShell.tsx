@@ -67,6 +67,7 @@ export function PlayerShell({
           key={scene.id}
           backgroundUrl={scene.backgroundUrl}
           tokens={toMapTokens(tokens, tokenLibrary, scene.id)}
+          grid={scene.grid}
         />
       }
     />

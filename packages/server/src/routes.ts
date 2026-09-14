@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { APP_NAME, APP_VERSION } from "@p2evtt/shared";
+import { APP_NAME, APP_VERSION, parseGrid } from "@p2evtt/shared";
 import { gmHandler, idParam, optionalId } from "./http";
 import { TOKEN_SIZES, type TokenSize } from "@p2evtt/shared";
 import type { SceneSnapshot, SceneStore } from "./scene";
@@ -54,11 +54,12 @@ export async function registerRoutes(
     "/api/scenes/:id",
     gmHandler(table, "Could not update scene", async (req) => {
       const id = idParam(req);
-      const body = (req.body as { name?: unknown; folderId?: unknown } | null) ?? {};
+      const body = (req.body as { name?: unknown; folderId?: unknown; grid?: unknown } | null) ?? {};
       let snap = scene.snapshot();
       const folderId = optionalId(body.folderId);
       if (folderId !== undefined) snap = await scene.moveScene(id, folderId);
       if (typeof body.name === "string") snap = await scene.renameScene(id, body.name);
+      if (body.grid !== undefined) snap = await scene.setGrid(id, parseGrid(body.grid));
       return publish(table, snap);
     }),
   );

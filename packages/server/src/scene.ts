@@ -3,7 +3,14 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { FastifyReply } from "fastify";
-import type { LibraryFolder, ScenePublic, SceneSummary } from "@p2evtt/shared";
+import {
+  DEFAULT_GRID,
+  parseGrid,
+  type LibraryFolder,
+  type SceneGrid,
+  type ScenePublic,
+  type SceneSummary,
+} from "@p2evtt/shared";
 import { uniqueAmong } from "./names";
 
 const ALLOWED = new Map([
@@ -19,6 +26,7 @@ type SceneRecord = {
   ext: string | null;
   version: number;
   usesFixture: boolean;
+  grid: SceneGrid;
 };
 
 type FolderRecord = {
@@ -61,6 +69,7 @@ export class SceneStore {
       this.scenes = (raw.scenes ?? []).map((s) => ({
         ...s,
         folderId: s.folderId ?? null,
+        grid: parseGrid(s.grid),
       }));
       this.folders = raw.folders ?? [];
       this.activeId = raw.activeId ?? this.scenes[0]?.id ?? "";
@@ -73,6 +82,7 @@ export class SceneStore {
         ext: null,
         version: 1,
         usesFixture: true,
+        grid: { ...DEFAULT_GRID },
       };
       this.scenes = [first];
       this.activeId = first.id;
@@ -101,6 +111,7 @@ export class SceneStore {
       ext: null,
       version: 1,
       usesFixture: false,
+      grid: { ...DEFAULT_GRID },
     };
     this.scenes.push(record);
     await this.persist();
@@ -138,6 +149,12 @@ export class SceneStore {
       const file = this.mediaPath(record);
       if (existsSync(file)) await unlink(file).catch(() => undefined);
     }
+    await this.persist();
+    return this.snapshot();
+  }
+
+  async setGrid(id: string, grid: SceneGrid): Promise<SceneSnapshot> {
+    this.requireScene(id).grid = parseGrid(grid);
     await this.persist();
     return this.snapshot();
   }
@@ -221,6 +238,7 @@ export class SceneStore {
       name: record.name,
       backgroundUrl: hasImage ? `/media/scenes/${record.id}?v=${record.version}` : null,
       version: record.version,
+      grid: record.grid ?? { ...DEFAULT_GRID },
     };
   }
 

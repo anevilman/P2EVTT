@@ -1,5 +1,5 @@
 export const APP_NAME = "P2EVTT";
-export const APP_VERSION = "0.6.0";
+export const APP_VERSION = "0.7.0";
 export const DEFAULT_PORT = 7788;
 
 export {
@@ -10,6 +10,7 @@ export {
   type Presence,
   type ScenePublic,
   type SceneSummary,
+  type SceneGrid,
   type LibraryFolder,
   type TokenSize,
   type TokenPrototype,
@@ -19,3 +20,12 @@ export {
   type ServerMsg,
   TOKEN_SIZES,
 } from "./protocol";
+
+export {
+  DEFAULT_GRID,
+  cellSize,
+  occupiedSquares,
+  parseGrid,
+  snapCenter,
+  tokenSpan,
+} from "./grid";

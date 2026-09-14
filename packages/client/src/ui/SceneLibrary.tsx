@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { LibraryFolder, ScenePublic, SceneSummary } from "@p2evtt/shared";
+import type { LibraryFolder, SceneGrid, ScenePublic, SceneSummary } from "@p2evtt/shared";
 import { gmFetch } from "../net/gmApi";
 import { folderPath, targetFolderId } from "./library/folderPath";
 import { LibraryTree, type Selection } from "./library/LibraryTree";
@@ -156,6 +156,19 @@ export function SceneLibrary({
           </select>
         </label>
       ) : null}
+      {selectedScene ? (
+        <GridFields
+          grid={selectedScene.grid}
+          onChange={(grid) => {
+            void run("Updating grid…", () =>
+              gmFetch(`/api/scenes/${selectedScene.id}`, sessionToken, {
+                method: "PATCH",
+                body: JSON.stringify({ grid }),
+              }).then(() => undefined),
+            );
+          }}
+        />
+      ) : null}
       {selectedScene && selectedScene.id !== live.id ? (
         <button
           type="button"
@@ -176,6 +189,53 @@ export function SceneLibrary({
       ) : (
         <p className="meta">Click to edit. Play this scene to show it to the table.</p>
       )}
+    </div>
+  );
+}
+
+function GridFields({ grid, onChange }: { grid: SceneGrid; onChange: (grid: SceneGrid) => void }) {
+  const g = grid ?? { enabled: true, squaresX: 24, offsetX: 0, offsetY: 0 };
+  return (
+    <div className="grid-fields">
+      <label className="grid-check">
+        <input
+          type="checkbox"
+          checked={g.enabled}
+          onChange={(e) => onChange({ ...g, enabled: e.target.checked })}
+        />
+        Grid
+      </label>
+      <label className="folder-move">
+        Squares across
+        <input
+          type="number"
+          min={2}
+          max={200}
+          value={g.squaresX}
+          disabled={!g.enabled}
+          onChange={(e) => onChange({ ...g, squaresX: Number(e.target.value) })}
+        />
+      </label>
+      <div className="grid-offsets">
+        <label className="folder-move">
+          Offset X
+          <input
+            type="number"
+            value={g.offsetX}
+            disabled={!g.enabled}
+            onChange={(e) => onChange({ ...g, offsetX: Number(e.target.value) })}
+          />
+        </label>
+        <label className="folder-move">
+          Offset Y
+          <input
+            type="number"
+            value={g.offsetY}
+            disabled={!g.enabled}
+            onChange={(e) => onChange({ ...g, offsetY: Number(e.target.value) })}
+          />
+        </label>
+      </div>
     </div>
   );
 }

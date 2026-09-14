@@ -1,3 +1,7 @@
+import { parseGrid, type SceneGrid } from "./grid";
+
+export type { SceneGrid } from "./grid";
+
 export const PROTOCOL_VERSION = 1;
 
 export type Role = "gm" | "player";
@@ -19,6 +23,7 @@ export type ScenePublic = {
   name: string;
   backgroundUrl: string | null;
   version: number;
+  grid: SceneGrid;
 };
 
 export type SceneSummary = ScenePublic & {
@@ -223,6 +228,7 @@ function parseScene(raw: unknown): ScenePublic | null {
     name: s.name,
     backgroundUrl: s.backgroundUrl,
     version: s.version,
+    grid: parseGrid((raw as { grid?: unknown }).grid),
   };
 }
 

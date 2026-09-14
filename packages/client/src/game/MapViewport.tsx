@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Application, Container, Rectangle, Sprite, Texture } from "pixi.js";
-import type { PlacedToken, TokenPrototype } from "@p2evtt/shared";
+import { Application, Container, Graphics, Rectangle, Sprite, Texture } from "pixi.js";
+import {
+  cellSize,
+  snapCenter,
+  tokenSpan,
+  type PlacedToken,
+  type SceneGrid,
+  type TokenPrototype,
+} from "@p2evtt/shared";
 import { TOKEN_PX } from "./tokenSize";
 
 export type MapToken = PlacedToken & {
@@ -12,6 +19,8 @@ export type MapToken = PlacedToken & {
 type Props = {
   backgroundUrl: string | null;
   tokens?: MapToken[];
+  grid?: SceneGrid | null;
+  placeSpan?: number;
   canEdit?: boolean;
   placeMode?: boolean;
   selectedTokenId?: string | null;
@@ -45,6 +54,8 @@ function waitForSize(el: HTMLElement): Promise<void> {
 export function MapViewport({
   backgroundUrl,
   tokens = [],
+  grid = null,
+  placeSpan = 1,
   canEdit = false,
   placeMode = false,
   selectedTokenId = null,
@@ -55,11 +66,15 @@ export function MapViewport({
   const hostRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<Container | null>(null);
   const layerRef = useRef<Container | null>(null);
+  const bgRef = useRef<Sprite | null>(null);
+  const gridGfxRef = useRef<Graphics | null>(null);
   const spritesRef = useRef(new Map<string, Sprite>());
   const tokensRef = useRef(tokens);
   const placeModeRef = useRef(placeMode);
   const canEditRef = useRef(canEdit);
   const selectedRef = useRef(selectedTokenId);
+  const gridRef = useRef(grid);
+  const placeSpanRef = useRef(placeSpan);
   const callbacks = useRef({ onSelectToken, onMoveToken, onPlaceToken });
   const [status, setStatus] = useState(
     backgroundUrl ? "Loading map…" : "No map image yet — GM can upload one.",
@@ -69,7 +84,16 @@ export function MapViewport({
   placeModeRef.current = placeMode;
   canEditRef.current = canEdit;
   selectedRef.current = selectedTokenId;
+  gridRef.current = grid;
+  placeSpanRef.current = placeSpan;
   callbacks.current = { onSelectToken, onMoveToken, onPlaceToken };
+
+  const snap = (x: number, y: number, span: number) => {
+    const g = gridRef.current;
+    const bg = bgRef.current;
+    if (!g?.enabled || !bg) return { x, y };
+    return snapCenter(x, y, span, bg.width, bg.height, g);
+  };
 
   useEffect(() => {
     if (!backgroundUrl) {
@@ -159,7 +183,8 @@ export function MapViewport({
           }
           if (placeModeRef.current && world) {
             const local = world.toLocal(e.global);
-            callbacks.current.onPlaceToken?.(local.x, local.y);
+            const p = snap(local.x, local.y, placeSpanRef.current);
+            callbacks.current.onPlaceToken?.(p.x, p.y);
             return;
           }
           panning = true;
@@ -168,8 +193,12 @@ export function MapViewport({
           callbacks.current.onSelectToken?.(null);
         });
         app.stage.on("pointerup", () => {
-          if (dragToken && world) {
-            callbacks.current.onMoveToken?.(String(dragToken.label), dragToken.x, dragToken.y);
+          const sprite = dragToken;
+          if (sprite && world) {
+            const tok = tokensRef.current.find((t) => t.id === String(sprite.label));
+            const p = snap(sprite.x, sprite.y, tokenSpan(tok?.size ?? "medium"));
+            sprite.position.set(p.x, p.y);
+            callbacks.current.onMoveToken?.(String(sprite.label), p.x, p.y);
           }
           dragToken = null;
           panning = false;
@@ -180,8 +209,11 @@ export function MapViewport({
         });
         app.stage.on("pointermove", (e) => {
           if (dragToken && world) {
+            const sprite = dragToken;
             const local = world.toLocal(e.global);
-            dragToken.position.set(local.x, local.y);
+            const tok = tokensRef.current.find((t) => t.id === String(sprite.label));
+            const p = snap(local.x, local.y, tokenSpan(tok?.size ?? "medium"));
+            sprite.position.set(p.x, p.y);
             return;
           }
           if (!panning || !world) return;
@@ -209,6 +241,7 @@ export function MapViewport({
         bg = new Sprite(texture);
         bg.eventMode = "none";
         world.addChildAt(bg, 0);
+        bgRef.current = bg;
         fit(bg);
         host.addEventListener("wheel", onWheel, { passive: false });
         setStatus("");
@@ -223,6 +256,8 @@ export function MapViewport({
       destroyed = true;
       worldRef.current = null;
       layerRef.current = null;
+      bgRef.current = null;
+      gridGfxRef.current = null;
       spritesRef.current.clear();
       resizeObs?.disconnect();
       host.removeEventListener("wheel", onWheel);
@@ -263,8 +298,16 @@ export function MapViewport({
         }
       }
       sprite.position.set(token.x, token.y);
-      sprite.width = token.sizePx;
-      sprite.height = token.sizePx;
+      const bg = bgRef.current;
+      const g = gridRef.current;
+      if (bg && g?.enabled) {
+        const cell = cellSize(bg.width, g);
+        sprite.width = tokenSpan(token.size) * cell;
+        sprite.height = sprite.width;
+      } else {
+        sprite.width = token.sizePx;
+        sprite.height = token.sizePx;
+      }
       sprite.alpha = token.id === selectedTokenId ? 1 : 0.95;
     }
 
@@ -273,7 +316,35 @@ export function MapViewport({
       sprite.destroy();
       sprites.delete(id);
     }
-  }, [tokens, selectedTokenId, canEdit, backgroundUrl, status]);
+  }, [tokens, selectedTokenId, canEdit, backgroundUrl, status, grid]);
+
+  useEffect(() => {
+    const world = worldRef.current;
+    const bg = bgRef.current;
+    if (!world || !bg || status) return;
+    let gfx = gridGfxRef.current;
+    if (!gfx) {
+      gfx = new Graphics();
+      gfx.eventMode = "none";
+      const layer = layerRef.current;
+      const at = layer ? world.getChildIndex(layer) : world.children.length;
+      world.addChildAt(gfx, Math.max(1, at));
+      gridGfxRef.current = gfx;
+    }
+    gfx.clear();
+    if (!grid?.enabled) return;
+    const w = bg.width;
+    const h = bg.height;
+    const cell = cellSize(w, grid);
+    if (cell < 2) return;
+    const stroke = { width: 1, color: 0xf8fafc, alpha: 0.28 };
+    for (let x = grid.offsetX; x <= w + 0.5; x += cell) {
+      gfx.moveTo(x, 0).lineTo(x, h).stroke(stroke);
+    }
+    for (let y = grid.offsetY; y <= h + 0.5; y += cell) {
+      gfx.moveTo(0, y).lineTo(w, y).stroke(stroke);
+    }
+  }, [grid, backgroundUrl, status]);
 
   const hint = placeMode
     ? "Click the map to place the token"

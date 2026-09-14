@@ -481,6 +481,42 @@ h1 {
   font-weight: 500;
 }
 
+.grid-fields {
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.grid-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.grid-offsets {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.grid-offsets .folder-move {
+  flex: 1;
+}
+
+.folder-move input[type="number"] {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.45rem;
+}
+
 .folder-move select {
   font: inherit;
   color: var(--fg);
