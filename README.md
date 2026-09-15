@@ -23,7 +23,7 @@ Open [http://127.0.0.1:7788](http://127.0.0.1:7788) in a browser. Enter a name, 
 - Players do not install anything. They just use a browser.
 - Display name is kept in localStorage (shared). Session is per tab (sessionStorage), so a GM can open a second tab as a player / DMPC.
 
-Friends on the same network:
+Friends on the same network: double-click `start-lan.bat`, or:
 
 ```bash
 pnpm dev -- --lan
