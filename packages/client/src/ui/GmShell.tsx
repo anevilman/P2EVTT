@@ -3,92 +3,86 @@ import {
   TOKEN_SIZES,
   emptyStatBlock,
   tokenSpan,
-  type LibraryFolder,
+  type CharacterSheetData,
+  type CharacterSheetEntry,
   type PlacedToken,
   type Presence,
-  type ScenePublic,
-  type SceneSummary,
+  type StatBlockData,
   type StatBlockEntry,
-  type TokenPrototype,
   type TokenSize,
 } from "@p2evtt/shared";
 import { TOKEN_PX } from "../game/tokenSize";
 import { MapViewport, toMapTokens } from "../game/MapViewport";
 import { gmFetch } from "../net/gmApi";
-import type { Theme } from "../theme";
+import { useStore } from "../store/TableStore";
+import { AssignRecordSelect, type RecordLink } from "./AssignRecordSelect";
 import { AssignedToSelect } from "./AssignedToSelect";
+import { CharacterSheetEditor } from "./CharacterSheetEditor";
+import { useDebouncedStatSave } from "./debouncedStatSave";
 import { Dock } from "./Dock";
-import { InspectIcon, ScenesIcon, StatsIcon, TokensIcon } from "./dockIcons";
+import { CubeIcon, InspectIcon, ScenesIcon, StatsIcon, TokensIcon } from "./dockIcons";
+import { SheetLibrary } from "./SheetLibrary";
 import { StatBlockEditor } from "./StatBlockEditor";
 import { StatLibrary } from "./StatLibrary";
 import { folderAndDescendants } from "./library/folderPath";
-import type { Selection } from "./library/LibraryTree";
 import { MapUpload } from "./MapUpload";
 import { PresenceList } from "./PresenceList";
 import { SceneLibrary } from "./SceneLibrary";
 import { TableShell } from "./TableShell";
-import { TokenLibrary, type PlaceKind } from "./TokenLibrary";
+import { TokenLibrary } from "./TokenLibrary";
 
-type Props = {
-  you: Presence;
-  players: Presence[];
-  scene: ScenePublic;
-  library: SceneSummary[];
-  folders: LibraryFolder[];
-  tokenLibrary: TokenPrototype[];
-  tokenFolders: LibraryFolder[];
-  tokens: PlacedToken[];
-  statLibrary: StatBlockEntry[];
-  statFolders: LibraryFolder[];
-  sessionToken: string;
-  theme: Theme;
-  onToggleTheme: () => void;
-  onStatSnapshot: (library: StatBlockEntry[], folders: LibraryFolder[]) => void;
-};
-
-export function GmShell({
-  you,
-  players,
-  scene,
-  library,
-  folders,
-  tokenLibrary = [],
-  tokenFolders = [],
-  tokens = [],
-  statLibrary = [],
-  statFolders = [],
-  sessionToken,
-  theme,
-  onToggleTheme,
-  onStatSnapshot,
-}: Props) {
-  const [selection, setSelection] = useState<Selection>({ kind: "item", id: scene.id });
-  const [tokenSel, setTokenSel] = useState<Selection>({ kind: "root" });
-  const [statSel, setStatSel] = useState<Selection>({ kind: "root" });
-  const [placeKind, setPlaceKind] = useState<PlaceKind>("off");
-  const [selectedPlacedId, setSelectedPlacedId] = useState<string | null>(null);
+export function GmShell() {
+  const { state, theme, actions } = useStore();
+  const session = state.session;
+  const scene = state.scene;
+  const [statError, setStatError] = useState<string | null>(null);
+  const placedSheet = useDebouncedStatSave((id, data) => {
+    const token = state.session?.sessionToken;
+    if (!token) return;
+    return gmFetch(`/api/character-sheets/${id}`, token, {
+      method: "PATCH",
+      body: JSON.stringify({ data }),
+    })
+      .then(() => setStatError(null))
+      .catch((err: unknown) => {
+        setStatError(err instanceof Error ? err.message : "Could not save character sheet");
+      });
+  });
+  const placedStat = useDebouncedStatSave((id, data) => {
+    const token = state.session?.sessionToken;
+    if (!token) return;
+    return gmFetch(`/api/placed/${id}`, token, {
+      method: "PATCH",
+      body: JSON.stringify({ statBlock: data }),
+    })
+      .then(() => setStatError(null))
+      .catch((err: unknown) => {
+        setStatError(err instanceof Error ? err.message : "Could not save stat block");
+      });
+  });
 
   useEffect(() => {
-    if (selection.kind === "item" && !library.some((s) => s.id === selection.id)) {
-      setSelection({ kind: "item", id: scene.id });
-    }
-    if (selection.kind === "folder" && !folders.some((f) => f.id === selection.id)) {
-      setSelection({ kind: "item", id: scene.id });
-    }
-  }, [library, folders, scene.id, selection]);
+    setStatError(null);
+  }, [state.ui.selectedPlacedId]);
+
+  if (!session || !scene || session.you.role !== "gm") return null;
+
+  const you = session.you;
+  const { players, library, folders, tokenLibrary, tokenFolders, tokens, statLibrary, statFolders, sheetLibrary, sheetFolders } = state;
+  const { sceneSelection, tokenSelection, statSelection, sheetSelection, placeKind, fogDraw, selectedPlacedId } = state.ui;
+  const sessionToken = session.sessionToken;
 
   const selectedScene =
-    selection.kind === "item" ? (library.find((s) => s.id === selection.id) ?? scene) : scene;
+    sceneSelection.kind === "item" ? (library.find((item) => item.id === sceneSelection.id) ?? scene) : scene;
   const previewingOther = selectedScene.id !== scene.id;
-  const selectedProto =
-    tokenSel.kind === "item" ? tokenLibrary.find((t) => t.id === tokenSel.id) : null;
-  const selectedPlaced = tokens.find((t) => t.id === selectedPlacedId) ?? null;
+  const selectedProto = tokenSelection.kind === "item" ? tokenLibrary.find((token) => token.id === tokenSelection.id) : null;
+  const selectedPlaced = tokens.find((token) => token.id === selectedPlacedId) ?? null;
 
   const tokensInScope = () => {
-    const folderId = tokenSel.kind === "folder" ? tokenSel.id : tokenSel.kind === "root" ? null : undefined;
+    const folderId = tokenSelection.kind === "folder" ? tokenSelection.id : tokenSelection.kind === "root" ? null : undefined;
     if (folderId === undefined) return [];
     const scope = folderAndDescendants(tokenFolders, folderId);
-    return tokenLibrary.filter((t) => scope.has(t.folderId));
+    return tokenLibrary.filter((token) => scope.has(token.folderId));
   };
 
   const placeOn = async (x: number, y: number) => {
@@ -106,7 +100,7 @@ export function GmShell({
           body: JSON.stringify({ sceneId: selectedScene.id, placements }),
         });
       }
-      setPlaceKind("off");
+      actions.setPlaceKind("off");
       return;
     }
     if (!selectedProto) return;
@@ -119,7 +113,7 @@ export function GmShell({
         y,
       }),
     });
-    setPlaceKind("off");
+    actions.setPlaceKind("off");
   };
 
   return (
@@ -130,11 +124,11 @@ export function GmShell({
       editingName={previewingOther ? selectedScene.name : null}
       invite
       theme={theme}
-      onToggleTheme={onToggleTheme}
+      onToggleTheme={actions.toggleTheme}
       dock={
         <Dock
-          storageKey="p2evtt.dock.gm"
-          defaultTab="scenes"
+          openId={state.ui.docks.gm}
+          onToggle={(id) => actions.toggleDock("gm", id)}
           tabs={[
             {
               id: "scenes",
@@ -147,8 +141,10 @@ export function GmShell({
                     live={scene}
                     library={library}
                     folders={folders}
-                    selection={selection}
-                    onSelect={setSelection}
+                    selection={sceneSelection}
+                    onSelect={actions.setSceneSelection}
+                    fogDraw={fogDraw}
+                    onToggleFog={() => actions.setFogDraw(!fogDraw)}
                   />
                   <MapUpload sessionToken={sessionToken} sceneId={selectedScene.id} />
                 </>
@@ -165,18 +161,19 @@ export function GmShell({
                   folders={tokenFolders}
                   players={players}
                   statLibrary={statLibrary}
-                  selection={tokenSel}
+                  sheets={sheetLibrary}
+                  selection={tokenSelection}
                   onSelect={(next) => {
-                    setTokenSel(next);
-                    setPlaceKind("off");
+                    actions.setTokenSelection(next);
+                    actions.setPlaceKind("off");
                   }}
                   placeKind={placeKind}
                   onTogglePlace={() => {
                     if (!selectedProto) return;
-                    setPlaceKind((k) => (k === "one" ? "off" : "one"));
+                    actions.setPlaceKind(placeKind === "one" ? "off" : "one");
                   }}
                   onTogglePlaceAll={() => {
-                    setPlaceKind((k) => (k === "all" ? "off" : "all"));
+                    actions.setPlaceKind(placeKind === "all" ? "off" : "all");
                   }}
                 />
               ),
@@ -184,15 +181,31 @@ export function GmShell({
             {
               id: "stats",
               label: "Stats",
-              icon: StatsIcon,
+              icon: CubeIcon,
               content: (
                 <StatLibrary
                   sessionToken={sessionToken}
                   library={statLibrary}
                   folders={statFolders}
-                  selection={statSel}
-                  onSelect={setStatSel}
-                  onSnapshot={onStatSnapshot}
+                  selection={statSelection}
+                  onSelect={actions.setStatSelection}
+                  onSnapshot={actions.applyStats}
+                />
+              ),
+            },
+            {
+              id: "sheets",
+              label: "Sheets",
+              icon: StatsIcon,
+              content: (
+                <SheetLibrary
+                  sessionToken={sessionToken}
+                  library={sheetLibrary}
+                  folders={sheetFolders}
+                  selection={sheetSelection}
+                  onSelect={actions.setSheetSelection}
+                  onSnapshot={actions.applySheets}
+                  actor={{ role: "gm" }}
                 />
               ),
             },
@@ -206,12 +219,29 @@ export function GmShell({
                   {selectedPlaced ? (
                     <PlacedInspect
                       token={selectedPlaced}
-                      name={tokenLibrary.find((p) => p.id === selectedPlaced.prototypeId)?.name ?? "Token"}
+                      name={tokenLibrary.find((proto) => proto.id === selectedPlaced.prototypeId)?.name ?? "Token"}
                       sessionToken={sessionToken}
                       players={players}
+                      statLibrary={statLibrary}
+                      sheets={sheetLibrary}
+                      statError={statError}
+                      onStatChange={(data) => placedStat.schedule(selectedPlaced.id, data)}
+                      onSheetChange={(id, data) => placedSheet.schedule(id, data)}
+                      onDiscardStatEdits={() => placedStat.cancelId(selectedPlaced.id)}
+                      onLink={(link) => {
+                        if (link.kind === "instance") return;
+                        const body =
+                          link.kind === "none"
+                            ? { kind: "none" }
+                            : { kind: link.kind, id: link.id };
+                        void gmFetch(`/api/placed/${selectedPlaced.id}`, sessionToken, {
+                          method: "PATCH",
+                          body: JSON.stringify({ link: body }),
+                        });
+                      }}
                     />
                   ) : (
-                    <p className="placeholder">Select a token on the map.</p>
+                    <p className="placeholder">Double-click a token on the map.</p>
                   )}
                   <h2>At the table</h2>
                   <PresenceList players={players} />
@@ -223,25 +253,18 @@ export function GmShell({
       }
       map={
         <>
-          {previewingOther ? (
-            <p className="map-edit-banner">Players are still on {scene.name}</p>
-          ) : null}
+          {previewingOther ? <p className="map-edit-banner">Players are still on {scene.name}</p> : null}
           <MapViewport
             key={selectedScene.id}
             backgroundUrl={selectedScene.backgroundUrl}
             tokens={toMapTokens(tokens, tokenLibrary, selectedScene.id, you.displayName, true)}
             grid={selectedScene.grid}
-            placeSpan={
-              placeKind === "all"
-                ? 1
-                : selectedProto
-                  ? tokenSpan(selectedProto.size)
-                  : 1
-            }
+            placeSpan={placeKind === "all" ? 1 : selectedProto ? tokenSpan(selectedProto.size) : 1}
             canEdit
             placeMode={placeKind !== "off"}
             selectedTokenId={selectedPlacedId}
-            onSelectToken={setSelectedPlacedId}
+            onSelectToken={actions.setSelectedPlaced}
+            onInspectToken={actions.inspectToken}
             onMoveToken={(id, x, y) => {
               void gmFetch(`/api/placed/${id}`, sessionToken, {
                 method: "PATCH",
@@ -250,6 +273,20 @@ export function GmShell({
             }}
             onPlaceToken={(x, y) => {
               void placeOn(x, y);
+            }}
+            fog={selectedScene.fog}
+            fogGm
+            fogDraw={fogDraw}
+            onAddFog={(box) => {
+              void gmFetch(`/api/scenes/${selectedScene.id}/fog`, sessionToken, {
+                method: "POST",
+                body: JSON.stringify(box),
+              });
+            }}
+            onRemoveFog={(id) => {
+              void gmFetch(`/api/scenes/${selectedScene.id}/fog/${id}`, sessionToken, {
+                method: "DELETE",
+              });
             }}
           />
         </>
@@ -263,12 +300,34 @@ function PlacedInspect({
   name,
   sessionToken,
   players,
+  statLibrary,
+  sheets,
+  statError,
+  onStatChange,
+  onSheetChange,
+  onDiscardStatEdits,
+  onLink,
 }: {
   token: PlacedToken;
   name: string;
   sessionToken: string;
   players: Presence[];
+  statLibrary: StatBlockEntry[];
+  sheets: CharacterSheetEntry[];
+  statError: string | null;
+  onStatChange: (data: StatBlockData) => void;
+  onSheetChange: (id: string, data: CharacterSheetData) => void;
+  onDiscardStatEdits: () => void;
+  onLink: (link: RecordLink) => void;
 }) {
+  const linkedSheet = token.characterSheetId
+    ? sheets.find((sheet) => sheet.id === token.characterSheetId)
+    : null;
+  const linkValue: RecordLink = token.characterSheetId
+    ? { kind: "sheet", id: token.characterSheetId }
+    : token.statBlock
+      ? { kind: "instance" }
+      : { kind: "none" };
   return (
     <div>
       <p>
@@ -280,10 +339,10 @@ function PlacedInspect({
       <AssignedToSelect
         value={token.controlledBy}
         players={players}
-        onChange={(name) => {
+        onChange={(assigned) => {
           void gmFetch(`/api/placed/${token.id}`, sessionToken, {
             method: "PATCH",
-            body: JSON.stringify({ controlledBy: name }),
+            body: JSON.stringify({ controlledBy: assigned }),
           });
         }}
       />
@@ -298,23 +357,27 @@ function PlacedInspect({
             });
           }}
         >
-          {TOKEN_SIZES.map((s) => (
-            <option key={s} value={s}>
-              {s}
+          {TOKEN_SIZES.map((size) => (
+            <option key={size} value={size}>
+              {size}
             </option>
           ))}
         </select>
       </label>
-      {token.statBlock ? (
-        <StatBlockEditor
-          data={token.statBlock}
-          onChange={(data) => {
-            void gmFetch(`/api/placed/${token.id}`, sessionToken, {
-              method: "PATCH",
-              body: JSON.stringify({ statBlock: data }),
-            });
-          }}
-        />
+      <AssignRecordSelect value={linkValue} statLibrary={statLibrary} sheets={sheets} onChange={onLink} />
+      {linkedSheet ? (
+        <>
+          <p className="meta">Editing {linkedSheet.name}. This is the sheet itself, not a copy.</p>
+          <CharacterSheetEditor
+            key={linkedSheet.id}
+            data={linkedSheet.data}
+            onChange={(data) => onSheetChange(linkedSheet.id, data)}
+          />
+        </>
+      ) : token.characterSheetId ? (
+        <p className="meta">That character sheet is missing.</p>
+      ) : token.statBlock ? (
+        <StatBlockEditor key={token.id} data={token.statBlock} onChange={onStatChange} />
       ) : (
         <button
           type="button"
@@ -322,17 +385,19 @@ function PlacedInspect({
           onClick={() => {
             void gmFetch(`/api/placed/${token.id}`, sessionToken, {
               method: "PATCH",
-              body: JSON.stringify({ statBlock: emptyStatBlock() }),
+              body: JSON.stringify({ statBlock: emptyStatBlock(), characterSheetId: null }),
             });
           }}
         >
           Add stat block
         </button>
       )}
+      {statError ? <p className="err">{statError}</p> : null}
       <button
         type="button"
         className="file-btn"
         onClick={() => {
+          onDiscardStatEdits();
           void gmFetch(`/api/placed/${token.id}`, sessionToken, { method: "DELETE" });
         }}
       >

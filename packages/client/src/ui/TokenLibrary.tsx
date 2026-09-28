@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   TOKEN_SIZES,
+  type CharacterSheetEntry,
   type LibraryFolder,
   type Presence,
   type StatBlockEntry,
@@ -8,6 +9,7 @@ import {
   type TokenSize,
 } from "@p2evtt/shared";
 import { gmFetch } from "../net/gmApi";
+import { AssignRecordSelect } from "./AssignRecordSelect";
 import { AssignedToSelect } from "./AssignedToSelect";
 import { folderAndDescendants, folderPath, targetFolderId } from "./library/folderPath";
 import { LibraryTree, type Selection } from "./library/LibraryTree";
@@ -20,6 +22,7 @@ type Props = {
   folders: LibraryFolder[];
   players: Presence[];
   statLibrary: StatBlockEntry[];
+  sheets: CharacterSheetEntry[];
   selection: Selection;
   onSelect: (selection: Selection) => void;
   placeKind: PlaceKind;
@@ -33,6 +36,7 @@ export function TokenLibrary({
   folders,
   players,
   statLibrary,
+  sheets,
   selection,
   onSelect,
   placeKind,
@@ -206,30 +210,28 @@ export function TokenLibrary({
               );
             }}
           />
-          <label className="folder-move">
-            Stat block
-            <select
-              value={selected.statBlockId ?? ""}
-              onChange={(e) => {
-                void run("Updating…", () =>
-                  gmFetch(`/api/token-prototypes/${selected.id}`, sessionToken, {
-                    method: "PATCH",
-                    body: JSON.stringify({ statBlockId: e.target.value === "" ? null : e.target.value }),
-                  }).then(() => undefined),
-                );
-              }}
-            >
-              <option value="">None</option>
-              {statLibrary
-                .slice()
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((block) => (
-                  <option key={block.id} value={block.id}>
-                    {block.name}
-                  </option>
-                ))}
-            </select>
-          </label>
+          <AssignRecordSelect
+            value={
+              selected.characterSheetId
+                ? { kind: "sheet", id: selected.characterSheetId }
+                : selected.statBlockId
+                  ? { kind: "stat", id: selected.statBlockId }
+                  : { kind: "none" }
+            }
+            statLibrary={statLibrary}
+            sheets={sheets}
+            onChange={(next) => {
+              if (next.kind === "instance") return;
+              const link = next.kind === "none" ? { kind: "none" } : { kind: next.kind, id: next.id };
+              void run("Updating…", () =>
+                gmFetch(`/api/token-prototypes/${selected.id}`, sessionToken, {
+                  method: "PATCH",
+                  body: JSON.stringify({ link }),
+                }).then(() => undefined),
+              );
+            }}
+          />
+          <p className="meta">A stat block is copied onto each placement. A character sheet stays one shared record.</p>
           <label className="folder-move">
             Default size (new placements)
             <select

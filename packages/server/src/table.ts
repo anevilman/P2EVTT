@@ -25,6 +25,13 @@ export class Table {
     return this.seats.get(token);
   }
 
+  seatFor(socket: WebSocket): Seat | undefined {
+    for (const seat of this.seats.values()) {
+      if (seat.socket === socket) return seat;
+    }
+    return undefined;
+  }
+
   gmName(): string | null {
     const gm = [...this.seats.values()].find((s) => s.role === "gm");
     return gm?.displayName ?? null;

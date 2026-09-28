@@ -48,6 +48,13 @@ export const PartyIcon = (
   </Icon>
 );
 
+export const CubeIcon = (
+  <Icon>
+    <path d="M12 3.5 19 7.5v9L12 20.5 5 16.5v-9L12 3.5Z" />
+    <path d="M12 12.2 19 7.5M12 12.2V20.5M12 12.2 5 7.5" />
+  </Icon>
+);
+
 export const StatsIcon = (
   <Icon>
     <path d="M7 4.5h10A1.5 1.5 0 0 1 18.5 6v13L12 16.2 5.5 19V6A1.5 1.5 0 0 1 7 4.5Z" />

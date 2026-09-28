@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import type { Presence } from "@p2evtt/shared";
 import type { Theme } from "../theme";
+import { RollLog } from "./RollLog";
+import { RollStage } from "./RollStage";
+import { RollTray } from "./RollTray";
 import { ThemeToggle } from "./ThemeToggle";
 
 type Props = {
@@ -42,9 +45,13 @@ export function TableShell({
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </header>
       {dock}
-      <section className="map">{map}</section>
+      <section className="map">
+        {map}
+        <RollStage />
+        <RollTray />
+      </section>
       <footer className="bottom">
-        <p className="placeholder">Chat and dice will live here.</p>
+        <RollLog />
       </footer>
     </div>
   );

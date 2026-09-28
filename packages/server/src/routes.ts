@@ -4,7 +4,8 @@ import { errorMessage, gmHandler, idParam, optionalId, requireSeat } from "./htt
 import { TOKEN_SIZES, type TokenSize } from "@p2evtt/shared";
 import type { SceneSnapshot, SceneStore } from "./scene";
 import type { Table } from "./table";
-import { parseStatBlockData } from "@p2evtt/shared";
+import { parseCharacterSheetData, parseStatBlockData } from "@p2evtt/shared";
+import type { SheetStore } from "./sheets";
 import type { StatStore } from "./stats";
 import type { TokenStore } from "./tokens";
 
@@ -23,6 +24,26 @@ function publishStats(table: Table, snap: ReturnType<StatStore["snapshot"]>) {
   return snap;
 }
 
+function publishSheets(table: Table, snap: ReturnType<SheetStore["snapshot"]>) {
+  table.broadcast({
+    type: "sheets.updated",
+    sheetLibrary: snap.sheetLibrary,
+    sheetFolders: snap.sheetFolders,
+  });
+  return snap;
+}
+
+function parseLink(raw: unknown): { kind: "none" } | { kind: "stat"; id: string } | { kind: "sheet"; id: string } | undefined {
+  if (raw === undefined) return undefined;
+  if (!raw || typeof raw !== "object") throw new Error("Invalid link.");
+  const link = raw as { kind?: unknown; id?: unknown };
+  if (link.kind === "none") return { kind: "none" };
+  if ((link.kind === "stat" || link.kind === "sheet") && typeof link.id === "string" && link.id.length > 0) {
+    return { kind: link.kind, id: link.id };
+  }
+  throw new Error("A token can use a stat block or a character sheet, not both.");
+}
+
 function asSize(raw: unknown): TokenSize {
   if (typeof raw === "string" && (TOKEN_SIZES as readonly string[]).includes(raw)) return raw as TokenSize;
   throw new Error("Unknown token size.");
@@ -34,6 +55,7 @@ export async function registerRoutes(
   scene: SceneStore,
   tokens: TokenStore,
   stats: StatStore,
+  sheets: SheetStore,
 ): Promise<void> {
   app.get("/api/health", async () => ({
     ok: true,
@@ -87,6 +109,20 @@ export async function registerRoutes(
   );
 
   app.post(
+    "/api/scenes/:id/fog",
+    gmHandler(table, "Could not add fog", async (req) => publish(table, await scene.addFog(idParam(req), req.body))),
+  );
+
+  app.delete(
+    "/api/scenes/:id/fog/:fogId",
+    gmHandler(table, "Could not remove fog", async (req) => {
+      const fogId = (req.params as { fogId?: unknown }).fogId;
+      if (typeof fogId !== "string" || fogId.length < 1) throw new Error("Missing fog box.");
+      return publish(table, await scene.removeFog(idParam(req), fogId));
+    }),
+  );
+
+  app.post(
     "/api/scenes/:id/background",
     gmHandler(table, "Upload failed", async (req, reply) => {
       const file = await req.file();
@@ -135,7 +171,7 @@ export async function registerRoutes(
     "/api/token-prototypes/:id",
     gmHandler(table, "Could not update token", async (req) => {
       const id = idParam(req);
-      const body = (req.body as { name?: unknown; folderId?: unknown; size?: unknown; controlledBy?: unknown; statBlockId?: unknown } | null) ?? {};
+      const body = (req.body as { name?: unknown; folderId?: unknown; size?: unknown; controlledBy?: unknown; statBlockId?: unknown; characterSheetId?: unknown; link?: unknown } | null) ?? {};
       let snap = tokens.snapshot();
       const folderId = optionalId(body.folderId);
       if (folderId !== undefined) snap = await tokens.movePrototype(id, folderId);
@@ -145,9 +181,25 @@ export async function registerRoutes(
         const raw = body.controlledBy;
         snap = await tokens.setPrototypeControlledBy(id, raw === null || raw === "" ? null : String(raw));
       }
-      if (body.statBlockId !== undefined) {
-        const sid = optionalId(body.statBlockId) ?? null;
-        snap = await tokens.setPrototypeStatBlock(id, sid);
+      const link = parseLink(body.link);
+      if (link) {
+        if (link.kind === "stat" && !stats.copy(link.id)) throw new Error("Unknown stat block.");
+        if (link.kind === "sheet" && !sheets.has(link.id)) throw new Error("Unknown character sheet.");
+        snap = await tokens.setPrototypeLink(
+          id,
+          link.kind === "stat" ? link.id : null,
+          link.kind === "sheet" ? link.id : null,
+        );
+      } else if (body.statBlockId !== undefined || body.characterSheetId !== undefined) {
+        const statBlockId = optionalId(body.statBlockId);
+        const characterSheetId = optionalId(body.characterSheetId);
+        const nextStat = statBlockId === undefined ? tokens.getPrototype(id).statBlockId : statBlockId;
+        const nextSheet = characterSheetId === undefined ? tokens.getPrototype(id).characterSheetId : characterSheetId;
+        snap = await tokens.setPrototypeLink(
+          id,
+          nextStat && nextSheet ? null : nextStat,
+          nextSheet,
+        );
       }
       return publishTokens(table, snap);
     }),
@@ -204,8 +256,9 @@ export async function registerRoutes(
       const y = Number(body.y);
       if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error("x and y must be numbers.");
       const proto = tokens.getPrototype(body.prototypeId);
-      const copy = proto.statBlockId ? stats.copy(proto.statBlockId) : null;
-      return publishTokens(table, await tokens.place(body.prototypeId, body.sceneId, x, y, copy));
+      const sheetId = proto.characterSheetId;
+      const copy = sheetId ? null : proto.statBlockId ? stats.copy(proto.statBlockId) : null;
+      return publishTokens(table, await tokens.place(body.prototypeId, body.sceneId, x, y, copy, sheetId));
     }),
   );
 
@@ -215,7 +268,13 @@ export async function registerRoutes(
       const body = (req.body as { sceneId?: unknown; placements?: unknown } | null) ?? {};
       if (typeof body.sceneId !== "string") throw new Error("sceneId is required.");
       if (!Array.isArray(body.placements)) throw new Error("placements is required.");
-      const placements: { prototypeId: string; x: number; y: number; statBlock: ReturnType<StatStore["copy"]> }[] = [];
+      const placements: {
+        prototypeId: string;
+        x: number;
+        y: number;
+        statBlock: ReturnType<StatStore["copy"]>;
+        characterSheetId: string | null;
+      }[] = [];
       for (const item of body.placements) {
         if (!item || typeof item !== "object") throw new Error("Invalid placement.");
         const p = item as { prototypeId?: unknown; x?: unknown; y?: unknown };
@@ -224,11 +283,13 @@ export async function registerRoutes(
         const y = Number(p.y);
         if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error("x and y must be numbers.");
         const proto = tokens.getPrototype(p.prototypeId);
+        const sheetId = proto.characterSheetId;
         placements.push({
           prototypeId: p.prototypeId,
           x,
           y,
-          statBlock: proto.statBlockId ? stats.copy(proto.statBlockId) : null,
+          statBlock: sheetId ? null : proto.statBlockId ? stats.copy(proto.statBlockId) : null,
+          characterSheetId: sheetId,
         });
       }
       return publishTokens(table, await tokens.placeMany(body.sceneId, placements));
@@ -240,7 +301,7 @@ export async function registerRoutes(
     if (!seat) return;
     const placed = tokens.getPlaced(idParam(req));
     if (!placed) return reply.code(404).send({ error: "Unknown token." });
-    const body = (req.body as { x?: unknown; y?: unknown; size?: unknown; controlledBy?: unknown; statBlock?: unknown } | null) ?? {};
+    const body = (req.body as { x?: unknown; y?: unknown; size?: unknown; controlledBy?: unknown; statBlock?: unknown; link?: unknown } | null) ?? {};
     const isGm = seat.role === "gm";
     const isController =
       typeof placed.controlledBy === "string" &&
@@ -248,8 +309,8 @@ export async function registerRoutes(
     if (!isGm && !isController) {
       return reply.code(403).send({ error: "That token is not yours." });
     }
-    if (!isGm && (body.size !== undefined || body.controlledBy !== undefined || body.statBlock !== undefined)) {
-      return reply.code(403).send({ error: "Only the GM can change size, control, or the stat block." });
+    if (!isGm && (body.size !== undefined || body.controlledBy !== undefined || body.statBlock !== undefined || body.link !== undefined)) {
+      return reply.code(403).send({ error: "Only the GM can change size, control, or the linked record." });
     }
     try {
       const patch: {
@@ -258,6 +319,7 @@ export async function registerRoutes(
         size?: TokenSize;
         controlledBy?: string | null;
         statBlock?: ReturnType<typeof parseStatBlockData> | null;
+        characterSheetId?: string | null;
       } = {};
       if (body.x !== undefined) {
         const x = Number(body.x);
@@ -276,6 +338,22 @@ export async function registerRoutes(
       }
       if (isGm && body.statBlock !== undefined) {
         patch.statBlock = body.statBlock == null ? null : parseStatBlockData(body.statBlock);
+      }
+      if (isGm && body.link !== undefined) {
+        const link = parseLink(body.link);
+        if (link?.kind === "stat") {
+          const copy = stats.copy(link.id);
+          if (!copy) throw new Error("Unknown stat block.");
+          patch.statBlock = copy;
+          patch.characterSheetId = null;
+        } else if (link?.kind === "sheet") {
+          if (!sheets.has(link.id)) throw new Error("Unknown character sheet.");
+          patch.characterSheetId = link.id;
+          patch.statBlock = null;
+        } else if (link?.kind === "none") {
+          patch.statBlock = null;
+          patch.characterSheetId = null;
+        }
       }
       return publishTokens(table, await tokens.updatePlaced(idParam(req), patch));
     } catch (err) {
@@ -349,6 +427,88 @@ export async function registerRoutes(
     "/api/stat-folders/:id",
     gmHandler(table, "Could not delete folder", async (req) =>
       publishStats(table, await stats.removeFolder(idParam(req))),
+    ),
+  );
+
+  app.post("/api/character-sheets", async (req, reply) => {
+    const seat = requireSeat(req, reply, table);
+    if (!seat) return;
+    const body = (req.body as { name?: unknown; folderId?: unknown } | null) ?? {};
+    try {
+      const name = String(body.name ?? "New character");
+      const snap =
+        seat.role === "gm"
+          ? await sheets.create(name, optionalId(body.folderId) ?? null)
+          : await sheets.createForPlayer(seat.displayName, name);
+      return publishSheets(table, snap);
+    } catch (err) {
+      return reply.code(400).send({ error: errorMessage(err, "Could not create character sheet") });
+    }
+  });
+
+  app.patch("/api/character-sheets/:id", async (req, reply) => {
+    const seat = requireSeat(req, reply, table);
+    if (!seat) return;
+    const id = idParam(req);
+    const isGm = seat.role === "gm";
+    if (!isGm && !sheets.ownedBy(id, seat.displayName)) {
+      return reply.code(403).send({ error: "That character sheet isn't yours." });
+    }
+    const body = (req.body as { name?: unknown; folderId?: unknown; data?: unknown } | null) ?? {};
+    if (!isGm && body.folderId !== undefined) {
+      return reply.code(403).send({ error: "Only the GM can move a character sheet." });
+    }
+    try {
+      let snap = sheets.snapshot();
+      const folderId = optionalId(body.folderId);
+      if (isGm && folderId !== undefined) snap = await sheets.move(id, folderId);
+      if (typeof body.name === "string") snap = await sheets.rename(id, body.name);
+      if (body.data !== undefined) snap = await sheets.saveData(id, parseCharacterSheetData(body.data));
+      return publishSheets(table, snap);
+    } catch (err) {
+      return reply.code(400).send({ error: errorMessage(err, "Could not update character sheet") });
+    }
+  });
+
+  app.delete("/api/character-sheets/:id", async (req, reply) => {
+    const seat = requireSeat(req, reply, table);
+    if (!seat) return;
+    const id = idParam(req);
+    if (seat.role !== "gm" && !sheets.ownedBy(id, seat.displayName)) {
+      return reply.code(403).send({ error: "That character sheet isn't yours." });
+    }
+    try {
+      const snap = await sheets.remove(id);
+      publishTokens(table, await tokens.clearSheetRefs(id));
+      return publishSheets(table, snap);
+    } catch (err) {
+      return reply.code(400).send({ error: errorMessage(err, "Could not delete character sheet") });
+    }
+  });
+
+  app.post(
+    "/api/character-folders",
+    gmHandler(table, "Could not create folder", async (req) => {
+      const body = (req.body as { name?: unknown; parentId?: unknown } | null) ?? {};
+      return publishSheets(
+        table,
+        await sheets.createFolder(String(body.name ?? "New folder"), optionalId(body.parentId) ?? null),
+      );
+    }),
+  );
+
+  app.patch(
+    "/api/character-folders/:id",
+    gmHandler(table, "Could not rename folder", async (req) => {
+      const name = String((req.body as { name?: unknown } | null)?.name ?? "");
+      return publishSheets(table, await sheets.renameFolder(idParam(req), name));
+    }),
+  );
+
+  app.delete(
+    "/api/character-folders/:id",
+    gmHandler(table, "Could not delete folder", async (req) =>
+      publishSheets(table, await sheets.removeFolder(idParam(req))),
     ),
   );
 }

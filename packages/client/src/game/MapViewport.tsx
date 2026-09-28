@@ -4,6 +4,7 @@ import {
   cellSize,
   snapCenter,
   tokenSpan,
+  type FogRect,
   type PlacedToken,
   type SceneGrid,
   type TokenPrototype,
@@ -26,8 +27,14 @@ type Props = {
   placeMode?: boolean;
   selectedTokenId?: string | null;
   onSelectToken?: (id: string | null) => void;
+  onInspectToken?: (id: string) => void;
   onMoveToken?: (id: string, x: number, y: number) => void;
   onPlaceToken?: (x: number, y: number) => void;
+  fog?: FogRect[];
+  fogGm?: boolean;
+  fogDraw?: boolean;
+  onAddFog?: (box: { x: number; y: number; w: number; h: number }) => void;
+  onRemoveFog?: (id: string) => void;
 };
 
 function loadImageTexture(url: string): Promise<Texture> {
@@ -61,33 +68,46 @@ export function MapViewport({
   placeMode = false,
   selectedTokenId = null,
   onSelectToken,
+  onInspectToken,
   onMoveToken,
   onPlaceToken,
+  fog = [],
+  fogGm = false,
+  fogDraw = false,
+  onAddFog,
+  onRemoveFog,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<Container | null>(null);
   const layerRef = useRef<Container | null>(null);
   const bgRef = useRef<Sprite | null>(null);
   const gridGfxRef = useRef<Graphics | null>(null);
+  const fogLayerRef = useRef<Container | null>(null);
+  const previewRef = useRef<Graphics | null>(null);
+  const fogButtonsRef = useRef<Container[]>([]);
+  const stageRef = useRef<Container | null>(null);
   const spritesRef = useRef(new Map<string, Sprite>());
   const tokensRef = useRef(tokens);
   const placeModeRef = useRef(placeMode);
+  const fogDrawRef = useRef(fogDraw);
   const canEditRef = useRef(canEdit);
   const selectedRef = useRef(selectedTokenId);
   const gridRef = useRef(grid);
   const placeSpanRef = useRef(placeSpan);
-  const callbacks = useRef({ onSelectToken, onMoveToken, onPlaceToken });
+  const callbacks = useRef({ onSelectToken, onInspectToken, onMoveToken, onPlaceToken, onAddFog, onRemoveFog });
   const [status, setStatus] = useState(
     backgroundUrl ? "Loading map…" : "No map image yet — GM can upload one.",
   );
+  const [mapEpoch, setMapEpoch] = useState(0);
 
   tokensRef.current = tokens;
   placeModeRef.current = placeMode;
+  fogDrawRef.current = fogDraw;
   canEditRef.current = canEdit;
   selectedRef.current = selectedTokenId;
   gridRef.current = grid;
   placeSpanRef.current = placeSpan;
-  callbacks.current = { onSelectToken, onMoveToken, onPlaceToken };
+  callbacks.current = { onSelectToken, onInspectToken, onMoveToken, onPlaceToken, onAddFog, onRemoveFog };
 
   const snap = (x: number, y: number, span: number) => {
     const g = gridRef.current;
@@ -115,6 +135,38 @@ export function MapViewport({
     let lastY = 0;
     let dragToken: Sprite | null = null;
     let resizeObs: ResizeObserver | null = null;
+    let lastTokenClick = { id: "", time: 0 };
+    let drawing = false;
+    let drawX = 0;
+    let drawY = 0;
+
+    const paintPreview = (x1: number, y1: number) => {
+      const preview = previewRef.current;
+      const image = bgRef.current;
+      if (!preview || !image) return;
+      preview.clear();
+      const box = clampFogBox(drawX, drawY, x1, y1, image.width, image.height);
+      if (!box) return;
+      preview
+        .rect(box.x, box.y, box.w, box.h)
+        .fill({ color: 0x9aa1ab, alpha: 0.24 })
+        .stroke({ width: 3, color: 0x4b5563, alpha: 0.55 });
+    };
+
+    const finishDraw = (global: { x: number; y: number }) => {
+      if (!drawing || !world) return;
+      drawing = false;
+      const preview = previewRef.current;
+      const image = bgRef.current;
+      preview?.clear();
+      if (!image) return;
+      const local = world.toLocal(global);
+      const box = clampFogBox(drawX, drawY, local.x, local.y, image.width, image.height);
+      if (!box || box.w < 8 || box.h < 8) return;
+      callbacks.current.onAddFog?.(box);
+    };
+
+    const onContext = (ev: Event) => ev.preventDefault();
 
     const zoomAt = (screenX: number, screenY: number, factor: number) => {
       if (!world) return;
@@ -167,22 +219,52 @@ export function MapViewport({
 
         world = new Container();
         const layer = new Container();
+        const fogLayer = new Container();
+        fogLayer.eventMode = "passive";
+        const preview = new Graphics();
+        preview.eventMode = "none";
+        fogLayer.addChild(preview);
         app.stage.addChild(world);
         world.addChild(layer);
+        world.addChild(fogLayer);
         worldRef.current = world;
         layerRef.current = layer;
+        fogLayerRef.current = fogLayer;
+        previewRef.current = preview;
+        stageRef.current = app.stage;
         app.stage.eventMode = "static";
         app.stage.hitArea = new Rectangle(0, 0, app.renderer.width, app.renderer.height);
+        app.ticker.add(() => {
+          const current = worldRef.current;
+          if (!current || current.scale.x <= 0) return;
+          const scale = 1 / current.scale.x;
+          for (const button of fogButtonsRef.current) button.scale.set(scale);
+        });
 
         app.stage.on("pointerdown", (e) => {
           const target = e.target;
+          if (fogButtonId(target)) return;
+          if (fogDrawRef.current && (e.button ?? 0) === 0 && world) {
+            const local = world.toLocal(e.global);
+            drawing = true;
+            drawX = local.x;
+            drawY = local.y;
+            dragToken = null;
+            panning = false;
+            return;
+          }
           if (target instanceof Sprite && target !== bg && target.label) {
             const id = String(target.label);
+            const now = performance.now();
+            const repeat = (e.button ?? 0) === 0 && lastTokenClick.id === id && now - lastTokenClick.time < 500;
+            lastTokenClick = repeat ? { id: "", time: 0 } : { id, time: now };
             callbacks.current.onSelectToken?.(id);
+            if (repeat) callbacks.current.onInspectToken?.(id);
             const tok = tokensRef.current.find((t) => t.id === id);
             if (tok?.movable) dragToken = target;
             return;
           }
+          lastTokenClick = { id: "", time: 0 };
           if (placeModeRef.current && world) {
             const local = world.toLocal(e.global);
             const p = snap(local.x, local.y, placeSpanRef.current);
@@ -194,7 +276,11 @@ export function MapViewport({
           lastY = e.global.y;
           callbacks.current.onSelectToken?.(null);
         });
-        app.stage.on("pointerup", () => {
+        app.stage.on("pointerup", (e) => {
+          if (drawing) {
+            finishDraw(e.global);
+            return;
+          }
           const sprite = dragToken;
           if (sprite && world) {
             const tok = tokensRef.current.find((t) => t.id === String(sprite.label));
@@ -205,11 +291,20 @@ export function MapViewport({
           dragToken = null;
           panning = false;
         });
-        app.stage.on("pointerupoutside", () => {
+        app.stage.on("pointerupoutside", (e) => {
+          if (drawing) {
+            finishDraw(e.global);
+            return;
+          }
           dragToken = null;
           panning = false;
         });
         app.stage.on("pointermove", (e) => {
+          if (drawing && world) {
+            const local = world.toLocal(e.global);
+            paintPreview(local.x, local.y);
+            return;
+          }
           if (dragToken && world) {
             const sprite = dragToken;
             const local = world.toLocal(e.global);
@@ -246,6 +341,8 @@ export function MapViewport({
         bgRef.current = bg;
         fit(bg);
         host.addEventListener("wheel", onWheel, { passive: false });
+        host.addEventListener("contextmenu", onContext);
+        setMapEpoch((n) => n + 1);
         setStatus("");
       } catch (err) {
         if (!destroyed) {
@@ -260,9 +357,14 @@ export function MapViewport({
       layerRef.current = null;
       bgRef.current = null;
       gridGfxRef.current = null;
+      fogLayerRef.current = null;
+      previewRef.current = null;
+      fogButtonsRef.current = [];
+      stageRef.current = null;
       spritesRef.current.clear();
       resizeObs?.disconnect();
       host.removeEventListener("wheel", onWheel);
+      host.removeEventListener("contextmenu", onContext);
       try {
         app.destroy(true, { children: true, texture: true });
       } catch {
@@ -285,7 +387,7 @@ export function MapViewport({
         sprite.anchor.set(0.5);
         sprite.tint = token.imageUrl ? 0xffffff : 0x3b82f6;
         sprite.eventMode = "static";
-        sprite.cursor = token.movable ? "pointer" : "default";
+        sprite.cursor = "pointer";
         sprite.label = token.id;
         layer.addChild(sprite);
         sprites.set(token.id, sprite);
@@ -310,7 +412,8 @@ export function MapViewport({
         sprite.width = token.sizePx;
         sprite.height = token.sizePx;
       }
-      sprite.cursor = token.movable ? "pointer" : "default";
+      sprite.eventMode = fogDraw ? "none" : "static";
+      sprite.cursor = fogDraw ? "crosshair" : token.movable ? "pointer" : "default";
       sprite.alpha = token.id === selectedTokenId ? 1 : 0.95;
     }
 
@@ -319,7 +422,7 @@ export function MapViewport({
       sprite.destroy();
       sprites.delete(id);
     }
-  }, [tokens, selectedTokenId, canEdit, backgroundUrl, status, grid]);
+  }, [tokens, selectedTokenId, canEdit, backgroundUrl, status, grid, fogDraw, mapEpoch]);
 
   useEffect(() => {
     const world = worldRef.current;
@@ -347,11 +450,78 @@ export function MapViewport({
     for (let y = grid.offsetY; y <= h + 0.5; y += cell) {
       gfx.moveTo(0, y).lineTo(w, y).stroke(stroke);
     }
-  }, [grid, backgroundUrl, status]);
+  }, [grid, backgroundUrl, status, mapEpoch]);
 
-  const hint = placeMode
-    ? "Click the map to place the token"
-    : "Scroll to zoom · drag to pan · drag a token to move";
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    stage.cursor = fogDraw ? "crosshair" : "default";
+  }, [fogDraw, status, backgroundUrl, mapEpoch]);
+
+  useEffect(() => {
+    const layer = fogLayerRef.current;
+    const world = worldRef.current;
+    if (!layer || !world || status) return;
+    const preview = previewRef.current;
+    const removed = layer.removeChildren();
+    for (const child of removed) {
+      if (child === preview) continue;
+      child.destroy({ children: true });
+    }
+    const buttons: Container[] = [];
+    for (const rect of fog) {
+      const fill = new Graphics();
+      if (fogGm) {
+        fill
+          .rect(rect.x, rect.y, rect.w, rect.h)
+          .fill({ color: 0x9aa1ab, alpha: 0.24 })
+          .stroke({ width: 3, color: 0x4b5563, alpha: 0.55 });
+        fill.eventMode = "none";
+      } else {
+        fill.rect(rect.x, rect.y, rect.w, rect.h).fill({ color: 0x8a909a, alpha: 1 });
+        fill.eventMode = "static";
+        fill.cursor = "default";
+      }
+      layer.addChild(fill);
+    }
+    if (fogGm) {
+      for (const rect of fog) {
+        const button = new Container();
+        button.position.set(rect.x + rect.w, rect.y);
+        button.eventMode = "passive";
+        const plate = new Graphics()
+          .roundRect(-28, 4, 24, 24, 5)
+          .fill({ color: 0x111113, alpha: 0.92 })
+          .stroke({ width: 1, color: 0xf4f4f5, alpha: 0.85 });
+        plate.label = `fog-x:${rect.id}`;
+        plate.eventMode = "static";
+        plate.cursor = "pointer";
+        plate.hitArea = new Rectangle(-28, 4, 24, 24);
+        const mark = new Graphics();
+        mark.moveTo(-21.5, 11).lineTo(-10.5, 22).stroke({ width: 2, color: 0xfafafa, cap: "round" });
+        mark.moveTo(-10.5, 11).lineTo(-21.5, 22).stroke({ width: 2, color: 0xfafafa, cap: "round" });
+        mark.eventMode = "none";
+        button.addChild(plate, mark);
+        plate.on("pointerdown", (ev) => {
+          ev.stopPropagation();
+          callbacks.current.onRemoveFog?.(rect.id);
+        });
+        if (world.scale.x > 0) button.scale.set(1 / world.scale.x);
+        layer.addChild(button);
+        buttons.push(button);
+      }
+    }
+    fogButtonsRef.current = buttons;
+    if (preview) layer.addChild(preview);
+  }, [fog, fogGm, status, backgroundUrl, mapEpoch]);
+
+  const hint = fogDraw
+    ? "Drag a box to place fog · right-drag to pan · click × to remove it"
+    : placeMode
+      ? "Click the map to place the token"
+      : onInspectToken
+        ? "Scroll to zoom · drag to pan · drag a token to move · double-click a token to inspect"
+        : "Scroll to zoom · drag to pan · drag a token to move";
 
   return (
     <div className="map-viewport">
@@ -384,4 +554,36 @@ export function toMapTokens(
 
 function namesMatch(assigned: string | null | undefined, youName: string): boolean {
   return Boolean(assigned && assigned.toLowerCase() === youName.trim().toLowerCase());
+}
+
+function clampFogBox(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  width: number,
+  height: number,
+): { x: number; y: number; w: number; h: number } | null {
+  if (width < 1 || height < 1) return null;
+  const left = clamp(Math.min(x0, x1), 0, width);
+  const right = clamp(Math.max(x0, x1), 0, width);
+  const top = clamp(Math.min(y0, y1), 0, height);
+  const bottom = clamp(Math.max(y0, y1), 0, height);
+  const w = right - left;
+  const h = bottom - top;
+  if (w <= 0 || h <= 0) return null;
+  return { x: left, y: top, w, h };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function fogButtonId(target: unknown): string | null {
+  let node = target as { label?: unknown; parent?: unknown } | null;
+  for (let i = 0; node && i < 8; i += 1) {
+    if (typeof node.label === "string" && node.label.startsWith("fog-x:")) return node.label.slice(6);
+    node = (node.parent ?? null) as typeof node;
+  }
+  return null;
 }

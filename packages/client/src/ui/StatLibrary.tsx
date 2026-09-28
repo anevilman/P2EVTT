@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
-import type { LibraryFolder, StatBlockData, StatBlockEntry } from "@p2evtt/shared";
+import { useState } from "react";
+import type { LibraryFolder, StatBlockEntry } from "@p2evtt/shared";
 import { gmFetch } from "../net/gmApi";
+import { useDebouncedStatSave } from "./debouncedStatSave";
 import { folderPath, targetFolderId } from "./library/folderPath";
 import { LibraryTree, type Selection } from "./library/LibraryTree";
 import { StatBlockEditor } from "./StatBlockEditor";
@@ -31,13 +32,23 @@ export function StatLibrary({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<string | null>(null);
-  const saveTimer = useRef<number>(0);
 
   const applySnap = (raw: unknown) => {
     const snap = raw as StatSnap | null;
     if (snap?.statLibrary && snap.statFolders) onSnapshot(snap.statLibrary, snap.statFolders);
     return snap;
   };
+
+  const persistStat = useDebouncedStatSave((id, data) =>
+    gmFetch(`/api/stat-blocks/${id}`, sessionToken, {
+      method: "PATCH",
+      body: JSON.stringify({ data }),
+    })
+      .then(applySnap)
+      .catch((err: unknown) => {
+        setStatus(err instanceof Error ? err.message : "Could not save stat block");
+      }),
+  );
 
   const run = async (label: string, fn: () => Promise<unknown>) => {
     setStatus(label);
@@ -66,19 +77,6 @@ export function StatLibrary({
     );
   };
 
-  const saveData = (data: StatBlockData) => {
-    if (!selected) return;
-    window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => {
-      void run("Saving…", () =>
-        gmFetch(`/api/stat-blocks/${selected.id}`, sessionToken, {
-          method: "PATCH",
-          body: JSON.stringify({ data }),
-        }),
-      );
-    }, 400);
-  };
-
   return (
     <div className="scene-library token-library">
       <h2>Stat blocks</h2>
@@ -103,6 +101,7 @@ export function StatLibrary({
             );
           }}
           onDeleteItem={(id) => {
+            persistStat.cancelId(id);
             void run("Deleting…", () =>
               gmFetch(`/api/stat-blocks/${id}`, sessionToken, { method: "DELETE" }),
             );
@@ -181,7 +180,11 @@ export function StatLibrary({
                 ))}
             </select>
           </label>
-          <StatBlockEditor data={selected.data} onChange={saveData} />
+          <StatBlockEditor
+            key={selected.id}
+            data={selected.data}
+            onChange={(data) => persistStat.schedule(selected.id, data)}
+          />
         </>
       ) : (
         <p className="meta">Select a stat block to edit the template.</p>

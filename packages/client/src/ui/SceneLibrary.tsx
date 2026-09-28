@@ -11,6 +11,8 @@ type Props = {
   folders: LibraryFolder[];
   selection: Selection;
   onSelect: (selection: Selection) => void;
+  fogDraw: boolean;
+  onToggleFog: () => void;
 };
 
 export function SceneLibrary({
@@ -20,6 +22,8 @@ export function SceneLibrary({
   folders,
   selection,
   onSelect,
+  fogDraw,
+  onToggleFog,
 }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -128,6 +132,16 @@ export function SceneLibrary({
           New scene
         </button>
       </div>
+      <button
+        type="button"
+        className={fogDraw ? "file-btn play-btn fog-toggle" : "file-btn fog-toggle"}
+        onClick={onToggleFog}
+      >
+        Fog of War
+      </button>
+      {fogDraw ? (
+        <p className="meta">Drag a box on the map. The × on a box removes that fog.</p>
+      ) : null}
       {selectedScene ? (
         <label className="folder-move">
           Folder

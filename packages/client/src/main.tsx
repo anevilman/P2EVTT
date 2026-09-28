@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { TableStoreProvider } from "./store/TableStore";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -10,6 +11,8 @@ if (!root) {
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <TableStoreProvider>
+      <App />
+    </TableStoreProvider>
   </StrictMode>,
 );

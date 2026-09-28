@@ -1,4 +1,5 @@
-import type { SkillLine, StatBlockData, StrikeLine } from "@p2evtt/shared";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { parseStatBlockData, type SkillLine, type StatBlockData, type StrikeLine } from "@p2evtt/shared";
 
 type Props = {
   data: StatBlockData;
@@ -9,85 +10,170 @@ function nid(): string {
   return crypto.randomUUID();
 }
 
-export function StatBlockEditor({ data, onChange }: Props) {
-  const set = (patch: Partial<StatBlockData>) => onChange({ ...data, ...patch });
-  const num = (raw: string) => {
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : 0;
+function sameBlock(a: StatBlockData, b: StatBlockData): boolean {
+  return JSON.stringify(parseStatBlockData(a)) === JSON.stringify(parseStatBlockData(b));
+}
+
+function rawNumber(raw: string): number {
+  if (raw === "" || raw === "-") return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * The visible text lives here while the field is focused.
+ * Pushing a server echo back into the input moves the caret to the end.
+ */
+export function CaretField({
+  value,
+  onValue,
+  numeric,
+  className,
+  rows,
+}: {
+  value: string;
+  onValue: (value: string) => void;
+  numeric?: boolean;
+  className?: string;
+  rows?: number;
+}) {
+  const [text, setText] = useState(value);
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setText(value);
+  }, [value]);
+
+  const apply = (raw: string) => {
+    if (numeric && raw !== "" && raw !== "-" && !/^-?\d*$/.test(raw)) return;
+    setText(raw);
+    if (numeric && (raw === "" || raw === "-")) return;
+    onValue(raw);
   };
+
+  const blur = () => {
+    focused.current = false;
+    if (numeric) {
+      const shown = String(rawNumber(text));
+      setText(shown);
+      if (shown !== value) onValue(shown);
+      return;
+    }
+    if (text !== value) onValue(text);
+  };
+
+  const shared = {
+    className,
+    value: text,
+    onFocus: () => {
+      focused.current = true;
+    },
+    onBlur: blur,
+    onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => apply(e.target.value),
+  };
+
+  if (rows) return <textarea rows={rows} {...shared} />;
+  return <input inputMode={numeric ? "numeric" : undefined} {...shared} />;
+}
+
+export function StatBlockEditor({ data, onChange }: Props) {
+  const [draft, setDraft] = useState(data);
+  const draftRef = useRef(draft);
+  const dirty = useRef(false);
+
+  useEffect(() => {
+    if (dirty.current) {
+      if (sameBlock(data, draftRef.current)) dirty.current = false;
+      return;
+    }
+    if (!sameBlock(data, draftRef.current)) {
+      draftRef.current = data;
+      setDraft(data);
+    }
+  }, [data]);
+
+  const set = (patch: Partial<StatBlockData>) => {
+    const next = { ...draft, ...patch };
+    draftRef.current = next;
+    dirty.current = true;
+    setDraft(next);
+    onChange(next);
+  };
+
+  const num = (raw: string) => rawNumber(raw);
 
   return (
     <div className="stat-editor">
       <div className="stat-row">
         <label>
           Level
-          <input type="number" value={data.level} onChange={(e) => set({ level: num(e.target.value) })} />
+          <CaretField numeric value={String(draft.level)} onValue={(raw) => set({ level: num(raw) })} />
         </label>
         <label className="grow">
           Traits
-          <input value={data.traits} onChange={(e) => set({ traits: e.target.value })} />
+          <CaretField value={draft.traits} onValue={(traits) => set({ traits })} />
         </label>
       </div>
       <div className="stat-row">
         <label>
           Perception
-          <input type="number" value={data.perception} onChange={(e) => set({ perception: num(e.target.value) })} />
+          <CaretField numeric value={String(draft.perception)} onValue={(raw) => set({ perception: num(raw) })} />
         </label>
         <label className="grow">
           Speed
-          <input value={data.speed} onChange={(e) => set({ speed: e.target.value })} />
+          <CaretField value={draft.speed} onValue={(speed) => set({ speed })} />
         </label>
       </div>
       <div className="stat-row six">
         {(["str", "dex", "con", "int", "wis", "cha"] as const).map((key) => (
           <label key={key}>
             {key.toUpperCase()}
-            <input type="number" value={data[key]} onChange={(e) => set({ [key]: num(e.target.value) })} />
+            <CaretField numeric value={String(draft[key])} onValue={(raw) => set({ [key]: num(raw) })} />
           </label>
         ))}
       </div>
       <div className="stat-row">
         <label>
           AC
-          <input type="number" value={data.ac} onChange={(e) => set({ ac: num(e.target.value) })} />
+          <CaretField numeric value={String(draft.ac)} onValue={(raw) => set({ ac: num(raw) })} />
         </label>
         <label>
           HP
-          <input type="number" value={data.hp} onChange={(e) => set({ hp: num(e.target.value) })} />
+          <CaretField numeric value={String(draft.hp)} onValue={(raw) => set({ hp: num(raw) })} />
         </label>
         <label>
           Max HP
-          <input type="number" value={data.hpMax} onChange={(e) => set({ hpMax: num(e.target.value) })} />
+          <CaretField numeric value={String(draft.hpMax)} onValue={(raw) => set({ hpMax: num(raw) })} />
         </label>
       </div>
       <div className="stat-row">
         <label>
           Fort
-          <input type="number" value={data.fort} onChange={(e) => set({ fort: num(e.target.value) })} />
+          <CaretField numeric value={String(draft.fort)} onValue={(raw) => set({ fort: num(raw) })} />
         </label>
         <label>
           Ref
-          <input type="number" value={data.ref} onChange={(e) => set({ ref: num(e.target.value) })} />
+          <CaretField numeric value={String(draft.ref)} onValue={(raw) => set({ ref: num(raw) })} />
         </label>
         <label>
           Will
-          <input type="number" value={data.will} onChange={(e) => set({ will: num(e.target.value) })} />
+          <CaretField numeric value={String(draft.will)} onValue={(raw) => set({ will: num(raw) })} />
         </label>
       </div>
       <h3>Skills</h3>
-      {data.skills.map((skill, i) => (
+      {draft.skills.map((skill, i) => (
         <div className="stat-row" key={skill.id}>
-          <input
+          <CaretField
             className="grow"
             value={skill.name}
-            onChange={(e) => set({ skills: patchAt(data.skills, i, { ...skill, name: e.target.value }) })}
+            onValue={(name) => set({ skills: patchAt(draft.skills, i, { ...skill, name }) })}
           />
-          <input
-            type="number"
-            value={skill.bonus}
-            onChange={(e) => set({ skills: patchAt(data.skills, i, { ...skill, bonus: num(e.target.value) }) })}
+          <CaretField
+            numeric
+            value={String(skill.bonus)}
+            onValue={(raw) => set({ skills: patchAt(draft.skills, i, { ...skill, bonus: num(raw) }) })}
           />
-          <button type="button" className="scene-x" onClick={() => set({ skills: data.skills.filter((_, j) => j !== i) })}>
+          <button type="button" className="scene-x" onClick={() => set({ skills: draft.skills.filter((_, j) => j !== i) })}>
             ×
           </button>
         </div>
@@ -95,27 +181,31 @@ export function StatBlockEditor({ data, onChange }: Props) {
       <button
         type="button"
         className="file-btn"
-        onClick={() => set({ skills: [...data.skills, { id: nid(), name: "Skill", bonus: 0 } satisfies SkillLine] })}
+        onClick={() => set({ skills: [...draft.skills, { id: nid(), name: "Skill", bonus: 0 } satisfies SkillLine] })}
       >
         Add skill
       </button>
       <h3>Strikes</h3>
-      {data.strikes.map((strike, i) => (
+      {draft.strikes.map((strike, i) => (
         <div className="stat-strike" key={strike.id}>
-          <input
+          <CaretField
             value={strike.name}
-            onChange={(e) => set({ strikes: patchAt(data.strikes, i, { ...strike, name: e.target.value }) })}
+            onValue={(name) => set({ strikes: patchAt(draft.strikes, i, { ...strike, name }) })}
           />
-          <input
-            type="number"
-            value={strike.attack}
-            onChange={(e) => set({ strikes: patchAt(data.strikes, i, { ...strike, attack: num(e.target.value) }) })}
+          <CaretField
+            numeric
+            value={String(strike.attack)}
+            onValue={(raw) => set({ strikes: patchAt(draft.strikes, i, { ...strike, attack: num(raw) }) })}
           />
-          <input
+          <CaretField
             value={strike.damage}
-            onChange={(e) => set({ strikes: patchAt(data.strikes, i, { ...strike, damage: e.target.value }) })}
+            onValue={(damage) => set({ strikes: patchAt(draft.strikes, i, { ...strike, damage }) })}
           />
-          <button type="button" className="scene-x" onClick={() => set({ strikes: data.strikes.filter((_, j) => j !== i) })}>
+          <button
+            type="button"
+            className="scene-x"
+            onClick={() => set({ strikes: draft.strikes.filter((_, j) => j !== i) })}
+          >
             ×
           </button>
         </div>
@@ -124,14 +214,16 @@ export function StatBlockEditor({ data, onChange }: Props) {
         type="button"
         className="file-btn"
         onClick={() =>
-          set({ strikes: [...data.strikes, { id: nid(), name: "Strike", attack: 0, damage: "1d8" } satisfies StrikeLine] })
+          set({
+            strikes: [...draft.strikes, { id: nid(), name: "Strike", attack: 0, damage: "1d8" } satisfies StrikeLine],
+          })
         }
       >
         Add strike
       </button>
       <label className="folder-move">
         Notes
-        <textarea rows={4} value={data.notes} onChange={(e) => set({ notes: e.target.value })} />
+        <CaretField rows={4} value={draft.notes} onValue={(notes) => set({ notes })} />
       </label>
     </div>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { APP_NAME, APP_VERSION } from "@p2evtt/shared";
-import type { Theme } from "../theme";
+import { loadDisplayName } from "../storage";
+import { useStore } from "../store/TableStore";
 import { ThemeToggle } from "./ThemeToggle";
 
 type TableStatus = {
@@ -9,24 +10,10 @@ type TableStatus = {
   seated: number;
 };
 
-type Props = {
-  defaultName: string;
-  busy: boolean;
-  error: string | null;
-  theme: Theme;
-  onToggleTheme: () => void;
-  onJoin: (displayName: string, wantGm: boolean) => void;
-};
-
-export function JoinScreen({
-  defaultName,
-  busy,
-  error,
-  theme,
-  onToggleTheme,
-  onJoin,
-}: Props) {
-  const [name, setName] = useState(defaultName);
+export function JoinScreen() {
+  const { state, theme, actions } = useStore();
+  const { busy, error } = state;
+  const [name, setName] = useState(() => loadDisplayName());
   const [status, setStatus] = useState<TableStatus | null>(null);
 
   useEffect(() => {
@@ -57,12 +44,12 @@ export function JoinScreen({
 
   const submitPlayer = (e: FormEvent) => {
     e.preventDefault();
-    if (ready) onJoin(name.trim(), false);
+    if (ready) actions.join(name.trim(), false);
   };
 
   return (
     <main className="splash">
-      <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+      <ThemeToggle theme={theme} onToggle={actions.toggleTheme} />
       <h1>{APP_NAME}</h1>
       <p className="tagline">Pathfinder 2e virtual tabletop — local table</p>
       <p className="meta">Open this page in a browser. Only the host runs the server.</p>
@@ -86,7 +73,7 @@ export function JoinScreen({
             type="button"
             className="gm-claim"
             disabled={!ready || gmTaken}
-            onClick={() => onJoin(name.trim(), true)}
+            onClick={() => actions.join(name.trim(), true)}
           >
             I'm the GM
           </button>

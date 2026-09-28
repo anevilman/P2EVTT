@@ -9,6 +9,8 @@ import {
   type TokenPrototype,
   type PlacedToken,
   type StatBlockEntry,
+  type CharacterSheetEntry,
+  type RollResult,
   type ServerMsg,
 } from "@p2evtt/shared";
 
@@ -24,6 +26,8 @@ export type TableSession = {
   tokens: PlacedToken[];
   statLibrary: StatBlockEntry[];
   statFolders: LibraryFolder[];
+  sheetLibrary: CharacterSheetEntry[];
+  sheetFolders: LibraryFolder[];
 };
 
 type Handlers = {
@@ -32,6 +36,8 @@ type Handlers = {
   onScene: (scene: ScenePublic, library: SceneSummary[], folders: LibraryFolder[]) => void;
   onTokens: (tokenLibrary: TokenPrototype[], tokenFolders: LibraryFolder[], tokens: PlacedToken[]) => void;
   onStats: (statLibrary: StatBlockEntry[], statFolders: LibraryFolder[]) => void;
+  onSheets: (sheetLibrary: CharacterSheetEntry[], sheetFolders: LibraryFolder[]) => void;
+  onRoll: (roll: RollResult) => void;
   onRejected: (reason: string) => void;
   onError: (message: string) => void;
   onClosed: () => void;
@@ -85,6 +91,8 @@ export function connectTable(opts: {
         tokens: msg.tokens,
         statLibrary: msg.statLibrary,
         statFolders: msg.statFolders,
+        sheetLibrary: msg.sheetLibrary,
+        sheetFolders: msg.sheetFolders,
       });
     } else if (msg.type === "hello.rejected") {
       opts.handlers.onRejected(msg.reason);
@@ -96,6 +104,10 @@ export function connectTable(opts: {
       opts.handlers.onTokens(msg.tokenLibrary, msg.tokenFolders, msg.tokens);
     } else if (msg.type === "stats.updated") {
       opts.handlers.onStats(msg.statLibrary, msg.statFolders);
+    } else if (msg.type === "sheets.updated") {
+      opts.handlers.onSheets(msg.sheetLibrary, msg.sheetFolders);
+    } else if (msg.type === "roll.result") {
+      opts.handlers.onRoll(msg.roll);
     } else if (msg.type === "error") {
       opts.handlers.onError(msg.message);
     }

@@ -8,6 +8,7 @@ import { parseArgs, repoRoot } from "./cli";
 import { registerRoutes } from "./routes";
 import { SceneStore } from "./scene";
 import { Table } from "./table";
+import { SheetStore } from "./sheets";
 import { StatStore } from "./stats";
 import { TokenStore } from "./tokens";
 import { registerWs } from "./ws";
@@ -31,10 +32,12 @@ async function main() {
   await tokens.load();
   const stats = new StatStore(args.dataDir);
   await stats.load();
+  const sheets = new SheetStore(args.dataDir);
+  await sheets.load();
 
   await app.register(multipart, { limits: { fileSize: 12 * 1024 * 1024 } });
-  await registerRoutes(app, table, scene, tokens, stats);
-  await registerWs(app, table, scene, tokens, stats);
+  await registerRoutes(app, table, scene, tokens, stats, sheets);
+  await registerWs(app, table, scene, tokens, stats, sheets);
   await app.register(middie);
 
   const clientRoot = path.join(repoRoot(), "packages/client");

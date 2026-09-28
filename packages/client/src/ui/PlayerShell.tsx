@@ -1,44 +1,30 @@
-import type { PlacedToken, Presence, ScenePublic, TokenPrototype } from "@p2evtt/shared";
 import { MapViewport, toMapTokens } from "../game/MapViewport";
 import { gmFetch } from "../net/gmApi";
-import type { Theme } from "../theme";
+import { useStore } from "../store/TableStore";
 import { Dock } from "./Dock";
-import { PartyIcon, SheetIcon } from "./dockIcons";
+import { PartyIcon, StatsIcon } from "./dockIcons";
+import { SheetLibrary } from "./SheetLibrary";
 import { PresenceList } from "./PresenceList";
 import { TableShell } from "./TableShell";
 
-type Props = {
-  you: Presence;
-  players: Presence[];
-  scene: ScenePublic;
-  tokenLibrary: TokenPrototype[];
-  tokens: PlacedToken[];
-  sessionToken: string;
-  theme: Theme;
-  onToggleTheme: () => void;
-};
+export function PlayerShell() {
+  const { state, theme, actions } = useStore();
+  const session = state.session;
+  const scene = state.scene;
+  if (!session || !scene || session.you.role !== "player") return null;
+  const you = session.you;
 
-export function PlayerShell({
-  you,
-  players,
-  scene,
-  tokenLibrary = [],
-  tokens = [],
-  sessionToken,
-  theme,
-  onToggleTheme,
-}: Props) {
   return (
     <TableShell
       role="player"
       you={you}
       liveName={scene.name}
       theme={theme}
-      onToggleTheme={onToggleTheme}
+      onToggleTheme={actions.toggleTheme}
       dock={
         <Dock
-          storageKey="p2evtt.dock.player"
-          defaultTab="party"
+          openId={state.ui.docks.player}
+          onToggle={(id) => actions.toggleDock("player", id)}
           tabs={[
             {
               id: "party",
@@ -47,19 +33,24 @@ export function PlayerShell({
               content: (
                 <>
                   <h2>Party</h2>
-                  <PresenceList players={players} />
+                  <PresenceList players={state.players} />
                 </>
               ),
             },
             {
               id: "sheet",
-              label: "Sheet",
-              icon: SheetIcon,
+              label: "Sheets",
+              icon: StatsIcon,
               content: (
-                <>
-                  <h2>My sheet</h2>
-                  <p className="placeholder">Character sheet in a later phase.</p>
-                </>
+                <SheetLibrary
+                  sessionToken={session.sessionToken}
+                  library={state.sheetLibrary}
+                  folders={state.sheetFolders}
+                  selection={state.ui.sheetSelection}
+                  onSelect={actions.setSheetSelection}
+                  onSnapshot={actions.applySheets}
+                  actor={{ role: "player", name: you.displayName }}
+                />
               ),
             },
           ]}
@@ -69,14 +60,15 @@ export function PlayerShell({
         <MapViewport
           key={scene.id}
           backgroundUrl={scene.backgroundUrl}
-          tokens={toMapTokens(tokens, tokenLibrary, scene.id, you.displayName, false)}
+          tokens={toMapTokens(state.tokens, state.tokenLibrary, scene.id, you.displayName, false)}
           grid={scene.grid}
           onMoveToken={(id, x, y) => {
-            void gmFetch(`/api/placed/${id}`, sessionToken, {
+            void gmFetch(`/api/placed/${id}`, session.sessionToken, {
               method: "PATCH",
               body: JSON.stringify({ x, y }),
             });
           }}
+          fog={scene.fog}
         />
       }
     />

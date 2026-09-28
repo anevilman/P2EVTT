@@ -28,6 +28,11 @@ type Props<T extends TreeItem> = {
   onDeleteItem: (id: string) => void;
   onMoveItem?: (itemId: string, folderId: string | null) => void;
   itemDeleteDisabled?: boolean;
+  canDeleteItem?: (item: T) => boolean;
+  canDeleteFolder?: (id: string) => boolean;
+  canRenameItem?: (item: T) => boolean;
+  canRenameFolder?: (id: string) => boolean;
+  allowOrganize?: boolean;
   renderItemBadge?: (item: T) => string | null;
 };
 
@@ -109,11 +114,13 @@ function renderLevel<T extends TreeItem>(
               onDraft={props.onDraft}
               onClick={() => props.onSelect({ kind: "folder", id: folder.id })}
               onToggle={() => toggle(folder.id)}
+              allowRename={props.canRenameFolder ? props.canRenameFolder(folder.id) : true}
               onStartRename={() => props.onStartRename(folder.id, folder.name)}
               onCommitRename={() => props.onCommitRename(folder.id)}
               onCancelRename={props.onCancelRename}
               onDelete={() => props.onDeleteFolder(folder.id)}
-              onMoveItem={props.onMoveItem}
+              hideDelete={props.canDeleteFolder ? !props.canDeleteFolder(folder.id) : false}
+              onMoveItem={props.allowOrganize === false ? undefined : props.onMoveItem}
             />
             {open ? <ul className="lib-tree">{renderLevel(folder.id, depth + 1, props, expanded, toggle)}</ul> : null}
           </li>
@@ -135,13 +142,15 @@ function renderLevel<T extends TreeItem>(
               badge={live ? "Live" : badge}
               onDraft={props.onDraft}
               onClick={() => props.onSelect({ kind: "item", id: item.id })}
+              allowRename={props.canRenameItem ? props.canRenameItem(item) : true}
               onStartRename={() => props.onStartRename(item.id, item.name)}
               onCommitRename={() => props.onCommitRename(item.id)}
               onCancelRename={props.onCancelRename}
               onDelete={() => props.onDeleteItem(item.id)}
               deleteDisabled={props.itemDeleteDisabled}
-              draggableId={item.id}
-              onMoveItem={props.onMoveItem}
+              hideDelete={props.canDeleteItem ? !props.canDeleteItem(item) : false}
+              draggableId={props.allowOrganize === false ? undefined : item.id}
+              onMoveItem={props.allowOrganize === false ? undefined : props.onMoveItem}
             />
           </li>
         );
@@ -168,6 +177,7 @@ type RowProps = {
   onDelete: () => void;
   deleteDisabled?: boolean;
   hideDelete?: boolean;
+  allowRename?: boolean;
   draggableId?: string;
   dropFolderId?: string | null;
   onMoveItem?: (itemId: string, folderId: string | null) => void;
@@ -250,7 +260,10 @@ function TreeRow(props: RowProps) {
               : undefined
           }
           onClick={props.onClick}
-          onDoubleClick={props.onStartRename}
+          onDoubleClick={() => {
+            if (props.allowRename === false) return;
+            props.onStartRename();
+          }}
         >
           {props.name}
           {props.badge ? <span className="lib-badge">{props.badge}</span> : null}

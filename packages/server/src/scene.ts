@@ -5,7 +5,9 @@ import { randomUUID } from "node:crypto";
 import type { FastifyReply } from "fastify";
 import {
   DEFAULT_GRID,
+  parseFogList,
   parseGrid,
+  type FogRect,
   type LibraryFolder,
   type SceneGrid,
   type ScenePublic,
@@ -19,6 +21,25 @@ const ALLOWED = new Map([
   ["image/webp", ".webp"],
 ]);
 
+function readFogBox(raw: unknown): { x: number; y: number; w: number; h: number } {
+  if (!raw || typeof raw !== "object") throw new Error("Invalid fog box.");
+  const box = raw as { x?: unknown; y?: unknown; w?: unknown; h?: unknown };
+  const x = finite(box.x);
+  const y = finite(box.y);
+  const w = finite(box.w);
+  const h = finite(box.h);
+  if (x === null || y === null || w === null || h === null) throw new Error("Invalid fog box.");
+  if (w < 1 || h < 1) throw new Error("Fog box is too small.");
+  if (w > 100_000 || h > 100_000 || Math.abs(x) > 1_000_000 || Math.abs(y) > 1_000_000) {
+    throw new Error("Fog box is too large.");
+  }
+  return { x, y, w, h };
+}
+
+function finite(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 type SceneRecord = {
   id: string;
   name: string;
@@ -27,6 +48,7 @@ type SceneRecord = {
   version: number;
   usesFixture: boolean;
   grid: SceneGrid;
+  fog: FogRect[];
 };
 
 type FolderRecord = {
@@ -70,6 +92,7 @@ export class SceneStore {
         ...s,
         folderId: s.folderId ?? null,
         grid: parseGrid(s.grid),
+        fog: parseFogList((s as { fog?: unknown }).fog),
       }));
       this.folders = raw.folders ?? [];
       this.activeId = raw.activeId ?? this.scenes[0]?.id ?? "";
@@ -83,6 +106,7 @@ export class SceneStore {
         version: 1,
         usesFixture: true,
         grid: { ...DEFAULT_GRID },
+        fog: [],
       };
       this.scenes = [first];
       this.activeId = first.id;
@@ -112,6 +136,7 @@ export class SceneStore {
       version: 1,
       usesFixture: false,
       grid: { ...DEFAULT_GRID },
+      fog: [],
     };
     this.scenes.push(record);
     await this.persist();
@@ -149,6 +174,23 @@ export class SceneStore {
       const file = this.mediaPath(record);
       if (existsSync(file)) await unlink(file).catch(() => undefined);
     }
+    await this.persist();
+    return this.snapshot();
+  }
+
+  async addFog(id: string, raw: unknown): Promise<SceneSnapshot> {
+    const record = this.requireScene(id);
+    if (record.fog.length >= 80) throw new Error("This scene already has 80 fog boxes.");
+    const box = readFogBox(raw);
+    record.fog = [...record.fog, { id: randomUUID(), ...box }];
+    await this.persist();
+    return this.snapshot();
+  }
+
+  async removeFog(sceneId: string, fogId: string): Promise<SceneSnapshot> {
+    const record = this.requireScene(sceneId);
+    if (!record.fog.some((box) => box.id === fogId)) throw new Error("That fog box is already gone.");
+    record.fog = record.fog.filter((box) => box.id !== fogId);
     await this.persist();
     return this.snapshot();
   }
@@ -239,6 +281,7 @@ export class SceneStore {
       backgroundUrl: hasImage ? `/media/scenes/${record.id}?v=${record.version}` : null,
       version: record.version,
       grid: record.grid ?? { ...DEFAULT_GRID },
+      fog: record.fog ?? [],
     };
   }
 

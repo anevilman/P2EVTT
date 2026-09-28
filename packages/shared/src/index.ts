@@ -1,5 +1,5 @@
 export const APP_NAME = "P2EVTT";
-export const APP_VERSION = "0.8.0";
+export const APP_VERSION = "0.12.0";
 export const DEFAULT_PORT = 7788;
 
 export {
@@ -10,6 +10,8 @@ export {
   type Presence,
   type ScenePublic,
   type SceneSummary,
+  type FogRect,
+  parseFogList,
   type SceneGrid,
   type LibraryFolder,
   type TokenSize,
@@ -17,6 +19,7 @@ export {
   type PlacedToken,
   type TokenSnapshot,
   type StatSnapshot,
+  type SheetSnapshot,
   type ClientMsg,
   type ServerMsg,
   TOKEN_SIZES,
@@ -32,6 +35,27 @@ export {
   type StrikeLine,
   type SkillLine,
 } from "./statBlock";
+
+export {
+  emptyCharacterSheet,
+  parseCharacterSheetData,
+  parseCharacterSheetEntry,
+  sheetOwnedBy,
+  type CharacterSheetData,
+  type CharacterSheetEntry,
+} from "./characterSheet";
+
+export {
+  parseFormula,
+  rollFormula,
+  degreeOfSuccess,
+  parseRollResult,
+  type Degree,
+  type FormulaTerm,
+  type DieFace,
+  type RollMath,
+  type RollResult,
+} from "./dice";
 
 export {
   DEFAULT_GRID,

@@ -1,5 +1,10 @@
 import { parseGrid, type SceneGrid } from "./grid";
 import {
+  parseCharacterSheetEntry,
+  type CharacterSheetEntry,
+} from "./characterSheet";
+import { parseRollResult, type RollResult } from "./dice";
+import {
   parseStatBlockData,
   parseStatBlockEntry,
   type StatBlockData,
@@ -24,12 +29,21 @@ export type LibraryFolder = {
   parentId: string | null;
 };
 
+export type FogRect = {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
 export type ScenePublic = {
   id: string;
   name: string;
   backgroundUrl: string | null;
   version: number;
   grid: SceneGrid;
+  fog: FogRect[];
 };
 
 export type SceneSummary = ScenePublic & {
@@ -48,6 +62,7 @@ export type TokenPrototype = {
   version: number;
   controlledBy: string | null;
   statBlockId: string | null;
+  characterSheetId: string | null;
 };
 
 export type PlacedToken = {
@@ -59,6 +74,7 @@ export type PlacedToken = {
   size: TokenSize;
   controlledBy: string | null;
   statBlock: StatBlockData | null;
+  characterSheetId: string | null;
 };
 
 export type TokenSnapshot = {
@@ -72,6 +88,11 @@ export type StatSnapshot = {
   statFolders: LibraryFolder[];
 };
 
+export type SheetSnapshot = {
+  sheetLibrary: CharacterSheetEntry[];
+  sheetFolders: LibraryFolder[];
+};
+
 export type ClientMsg =
   | {
       type: "hello";
@@ -80,7 +101,8 @@ export type ClientMsg =
       wantGm: boolean;
       sessionToken?: string;
     }
-  | { type: "hb.ping" };
+  | { type: "hb.ping" }
+  | { type: "roll"; formula: string; dc: number | null };
 
 export type ServerMsg =
   | {
@@ -96,6 +118,8 @@ export type ServerMsg =
       tokens: PlacedToken[];
       statLibrary: StatBlockEntry[];
       statFolders: LibraryFolder[];
+      sheetLibrary: CharacterSheetEntry[];
+      sheetFolders: LibraryFolder[];
     }
   | { type: "hello.rejected"; reason: string }
   | { type: "presence"; players: Presence[] }
@@ -116,7 +140,13 @@ export type ServerMsg =
       statLibrary: StatBlockEntry[];
       statFolders: LibraryFolder[];
     }
+  | {
+      type: "sheets.updated";
+      sheetLibrary: CharacterSheetEntry[];
+      sheetFolders: LibraryFolder[];
+    }
   | { type: "hb.pong" }
+  | { type: "roll.result"; roll: RollResult }
   | { type: "error"; message: string };
 
 export function parseClientMsg(raw: unknown): ClientMsg | null {
@@ -140,6 +170,12 @@ export function parseClientMsg(raw: unknown): ClientMsg | null {
       wantGm: m.wantGm === true,
       sessionToken: m.sessionToken,
     };
+  }
+  if (msg.type === "roll") {
+    const m = raw as { formula?: unknown; dc?: unknown };
+    if (typeof m.formula !== "string") return null;
+    if (m.dc !== null && m.dc !== undefined && typeof m.dc !== "number") return null;
+    return { type: "roll", formula: m.formula, dc: typeof m.dc === "number" ? m.dc : null };
   }
   return null;
 }
@@ -171,6 +207,8 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
       tokens?: unknown;
       statLibrary?: unknown;
       statFolders?: unknown;
+      sheetLibrary?: unknown;
+      sheetFolders?: unknown;
     };
     if (typeof m.sessionToken !== "string") return null;
     const you = parsePresence(m.you);
@@ -180,7 +218,8 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
     const folders = parseFolders(m.folders);
     const tokens = parseTokenSnapshot(m);
     const stats = parseStatSnapshot(m);
-    if (!you || !players || !scene || !library || !folders || !tokens || !stats) return null;
+    const sheets = parseSheetSnapshot(m);
+    if (!you || !players || !scene || !library || !folders || !tokens || !stats || !sheets) return null;
     return {
       type: "hello.ok",
       sessionToken: m.sessionToken,
@@ -191,6 +230,7 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
       folders,
       ...tokens,
       ...stats,
+      ...sheets,
     };
   }
   if (msg.type === "presence") {
@@ -215,6 +255,16 @@ export function parseServerMsg(raw: unknown): ServerMsg | null {
     const stats = parseStatSnapshot(raw);
     if (!stats) return null;
     return { type: "stats.updated", ...stats };
+  }
+  if (msg.type === "sheets.updated") {
+    const sheets = parseSheetSnapshot(raw);
+    if (!sheets) return null;
+    return { type: "sheets.updated", ...sheets };
+  }
+  if (msg.type === "roll.result") {
+    const roll = parseRollResult((raw as { roll?: unknown }).roll);
+    if (!roll) return null;
+    return { type: "roll.result", roll };
   }
   return null;
 }
@@ -260,7 +310,31 @@ function parseScene(raw: unknown): ScenePublic | null {
     backgroundUrl: s.backgroundUrl,
     version: s.version,
     grid: parseGrid((raw as { grid?: unknown }).grid),
+    fog: parseFogList((raw as { fog?: unknown }).fog),
   };
+}
+
+export function parseFogList(raw: unknown): FogRect[] {
+  if (!Array.isArray(raw)) return [];
+  const out: FogRect[] = [];
+  for (const item of raw) {
+    const fog = parseFogRect(item);
+    if (fog) out.push(fog);
+  }
+  return out;
+}
+
+function parseFogRect(raw: unknown): FogRect | null {
+  if (!raw || typeof raw !== "object") return null;
+  const fog = raw as { id?: unknown; x?: unknown; y?: unknown; w?: unknown; h?: unknown };
+  if (typeof fog.id !== "string" || fog.id.length < 1) return null;
+  if (!isFiniteNum(fog.x) || !isFiniteNum(fog.y) || !isFiniteNum(fog.w) || !isFiniteNum(fog.h)) return null;
+  if (fog.w <= 0 || fog.h <= 0) return null;
+  return { id: fog.id, x: fog.x, y: fog.y, w: fog.w, h: fog.h };
+}
+
+function isFiniteNum(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function parseLibrary(raw: unknown): SceneSummary[] | null {
@@ -299,6 +373,7 @@ function parseTokenPrototype(raw: unknown): TokenPrototype | null {
     version?: unknown;
     controlledBy?: unknown;
     statBlockId?: unknown;
+    characterSheetId?: unknown;
   };
   const size = parseTokenSize(t.size);
   if (typeof t.id !== "string" || typeof t.name !== "string" || typeof t.version !== "number" || !size) {
@@ -312,6 +387,10 @@ function parseTokenPrototype(raw: unknown): TokenPrototype | null {
   if (t.statBlockId !== null && t.statBlockId !== undefined && typeof t.statBlockId !== "string") {
     return null;
   }
+  if (t.characterSheetId !== null && t.characterSheetId !== undefined && typeof t.characterSheetId !== "string") {
+    return null;
+  }
+  const characterSheetId = typeof t.characterSheetId === "string" ? t.characterSheetId : null;
   return {
     id: t.id,
     name: t.name,
@@ -320,7 +399,8 @@ function parseTokenPrototype(raw: unknown): TokenPrototype | null {
     size,
     version: t.version,
     controlledBy: typeof t.controlledBy === "string" && t.controlledBy.trim() ? t.controlledBy.trim() : null,
-    statBlockId: typeof t.statBlockId === "string" ? t.statBlockId : null,
+    statBlockId: characterSheetId ? null : typeof t.statBlockId === "string" ? t.statBlockId : null,
+    characterSheetId,
   };
 }
 
@@ -336,6 +416,7 @@ function parsePlacedToken(raw: unknown): PlacedToken | null {
     controlledBy?: unknown;
     controllerId?: unknown;
     statBlock?: unknown;
+    characterSheetId?: unknown;
   };
   const size = parseTokenSize(t.size);
   if (
@@ -354,6 +435,10 @@ function parsePlacedToken(raw: unknown): PlacedToken | null {
       : typeof t.controllerId === "string" && !looksLikeId(t.controllerId)
         ? t.controllerId
         : null;
+  if (t.characterSheetId !== null && t.characterSheetId !== undefined && typeof t.characterSheetId !== "string") {
+    return null;
+  }
+  const characterSheetId = typeof t.characterSheetId === "string" ? t.characterSheetId : null;
   return {
     id: t.id,
     prototypeId: t.prototypeId,
@@ -362,8 +447,24 @@ function parsePlacedToken(raw: unknown): PlacedToken | null {
     y: t.y,
     size,
     controlledBy: name && name.length > 0 ? name : null,
-    statBlock: t.statBlock == null ? null : parseStatBlockData(t.statBlock),
+    statBlock: characterSheetId || t.statBlock == null ? null : parseStatBlockData(t.statBlock),
+    characterSheetId,
   };
+}
+
+function parseSheetSnapshot(raw: unknown): SheetSnapshot | null {
+  if (!raw || typeof raw !== "object") return null;
+  const t = raw as { sheetLibrary?: unknown; sheetFolders?: unknown };
+  const sheetFolders = parseFolders(t.sheetFolders);
+  if (!sheetFolders) return null;
+  if (!Array.isArray(t.sheetLibrary)) return null;
+  const sheetLibrary: CharacterSheetEntry[] = [];
+  for (const item of t.sheetLibrary) {
+    const entry = parseCharacterSheetEntry(item);
+    if (!entry) return null;
+    sheetLibrary.push(entry);
+  }
+  return { sheetLibrary, sheetFolders };
 }
 
 function parseStatSnapshot(raw: unknown): StatSnapshot | null {

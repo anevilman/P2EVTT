@@ -23,6 +23,7 @@ type ProtoRecord = {
   usesFixture: boolean;
   controlledBy: string | null;
   statBlockId: string | null;
+  characterSheetId: string | null;
 };
 
 type FolderRecord = {
@@ -31,11 +32,12 @@ type FolderRecord = {
   parentId: string | null;
 };
 
-type PlacedRecord = Omit<PlacedToken, "size" | "controlledBy" | "statBlock"> & {
+type PlacedRecord = Omit<PlacedToken, "size" | "controlledBy" | "statBlock" | "characterSheetId"> & {
   size?: TokenSize;
   controlledBy?: string | null;
   controllerId?: string | null;
   statBlock?: StatBlockData | null;
+  characterSheetId?: string | null;
 };
 
 type DiskState = {
@@ -67,17 +69,22 @@ export class TokenStore {
       this.prototypes = (raw.prototypes ?? []).map((p) => ({
         ...p,
         controlledBy: normalizeControllerName(p.controlledBy),
-        statBlockId: p.statBlockId ?? null,
+        statBlockId: p.characterSheetId ? null : (p.statBlockId ?? null),
+        characterSheetId: p.characterSheetId ?? null,
       }));
-      this.placed = (raw.placed ?? []).map((t) => ({
-        ...t,
-        size:
-          t.size ??
-          this.prototypes.find((p) => p.id === t.prototypeId)?.size ??
-          "medium",
-        controlledBy: normalizeControllerName(t.controlledBy ?? t.controllerId),
-        statBlock: t.statBlock == null ? null : parseStatBlockData(t.statBlock),
-      }));
+      this.placed = (raw.placed ?? []).map((t) => {
+        const characterSheetId = t.characterSheetId ?? null;
+        return {
+          ...t,
+          size:
+            t.size ??
+            this.prototypes.find((p) => p.id === t.prototypeId)?.size ??
+            "medium",
+          controlledBy: normalizeControllerName(t.controlledBy ?? t.controllerId),
+          statBlock: characterSheetId || t.statBlock == null ? null : parseStatBlockData(t.statBlock),
+          characterSheetId,
+        };
+      });
     }
     if (this.prototypes.length < 1) {
       this.prototypes = [
@@ -91,6 +98,7 @@ export class TokenStore {
           usesFixture: true,
           controlledBy: null,
           statBlockId: null,
+          characterSheetId: null,
         },
       ];
       await this.persist();
@@ -120,6 +128,7 @@ export class TokenStore {
       usesFixture: false,
       controlledBy: null,
       statBlockId: null,
+      characterSheetId: null,
     };
     this.prototypes.push(record);
     await this.persist();
@@ -161,7 +170,24 @@ export class TokenStore {
   }
 
   async setPrototypeStatBlock(id: string, statBlockId: string | null): Promise<TokenSnapshot> {
-    this.requireProto(id).statBlockId = statBlockId;
+    const record = this.requireProto(id);
+    record.statBlockId = statBlockId;
+    if (statBlockId) record.characterSheetId = null;
+    await this.persist();
+    return this.snapshot();
+  }
+
+  async setPrototypeLink(
+    id: string,
+    statBlockId: string | null,
+    characterSheetId: string | null,
+  ): Promise<TokenSnapshot> {
+    if (statBlockId && characterSheetId) {
+      throw new Error("A token can use a stat block or a character sheet, not both.");
+    }
+    const record = this.requireProto(id);
+    record.statBlockId = statBlockId;
+    record.characterSheetId = characterSheetId;
     await this.persist();
     return this.snapshot();
   }
@@ -169,6 +195,17 @@ export class TokenStore {
   async clearStatBlockRefs(statBlockId: string): Promise<TokenSnapshot> {
     for (const p of this.prototypes) {
       if (p.statBlockId === statBlockId) p.statBlockId = null;
+    }
+    await this.persist();
+    return this.snapshot();
+  }
+
+  async clearSheetRefs(sheetId: string): Promise<TokenSnapshot> {
+    for (const proto of this.prototypes) {
+      if (proto.characterSheetId === sheetId) proto.characterSheetId = null;
+    }
+    for (const token of this.placed) {
+      if (token.characterSheetId === sheetId) token.characterSheetId = null;
     }
     await this.persist();
     return this.snapshot();
@@ -250,8 +287,10 @@ export class TokenStore {
     x: number,
     y: number,
     statBlock: StatBlockData | null,
+    characterSheetId: string | null,
   ): Promise<TokenSnapshot> {
     const proto = this.requireProto(prototypeId);
+    const sheetId = characterSheetId;
     this.placed.push({
       id: randomUUID(),
       prototypeId,
@@ -260,7 +299,8 @@ export class TokenStore {
       y,
       size: proto.size,
       controlledBy: proto.controlledBy,
-      statBlock,
+      statBlock: sheetId ? null : statBlock,
+      characterSheetId: sheetId,
     });
     await this.persist();
     return this.snapshot();
@@ -268,7 +308,13 @@ export class TokenStore {
 
   async placeMany(
     sceneId: string,
-    placements: { prototypeId: string; x: number; y: number; statBlock: StatBlockData | null }[],
+    placements: {
+      prototypeId: string;
+      x: number;
+      y: number;
+      statBlock: StatBlockData | null;
+      characterSheetId: string | null;
+    }[],
   ): Promise<TokenSnapshot> {
     if (placements.length < 1) throw new Error("Nothing to place.");
     for (const p of placements) {
@@ -282,7 +328,8 @@ export class TokenStore {
         y: p.y,
         size: proto.size,
         controlledBy: proto.controlledBy,
-        statBlock: p.statBlock,
+        statBlock: p.characterSheetId ? null : p.statBlock,
+        characterSheetId: p.characterSheetId,
       });
     }
     await this.persist();
@@ -297,6 +344,7 @@ export class TokenStore {
       size?: TokenSize;
       controlledBy?: string | null;
       statBlock?: StatBlockData | null;
+      characterSheetId?: string | null;
     },
   ): Promise<TokenSnapshot> {
     const token = this.placed.find((t) => t.id === id);
@@ -307,6 +355,11 @@ export class TokenStore {
     if (patch.controlledBy !== undefined) token.controlledBy = normalizeControllerName(patch.controlledBy);
     if (patch.statBlock !== undefined) {
       token.statBlock = patch.statBlock == null ? null : parseStatBlockData(patch.statBlock);
+    }
+    if (patch.characterSheetId !== undefined) token.characterSheetId = patch.characterSheetId;
+    if (token.characterSheetId && token.statBlock) {
+      if (patch.characterSheetId) token.statBlock = null;
+      else token.characterSheetId = null;
     }
     await this.persist();
     return this.snapshot();
@@ -346,7 +399,8 @@ export class TokenStore {
       size: record.size,
       version: record.version,
       controlledBy: record.controlledBy ?? null,
-      statBlockId: record.statBlockId ?? null,
+      statBlockId: record.characterSheetId ? null : (record.statBlockId ?? null),
+      characterSheetId: record.characterSheetId ?? null,
     };
   }
 
