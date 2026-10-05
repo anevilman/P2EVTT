@@ -30,12 +30,14 @@ export function CaretField({
   numeric,
   className,
   rows,
+  disabled,
 }: {
   value: string;
   onValue: (value: string) => void;
   numeric?: boolean;
   className?: string;
   rows?: number;
+  disabled?: boolean;
 }) {
   const [text, setText] = useState(value);
   const focused = useRef(false);
@@ -64,6 +66,7 @@ export function CaretField({
 
   const shared = {
     className,
+    disabled,
     value: text,
     onFocus: () => {
       focused.current = true;

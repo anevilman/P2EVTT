@@ -83,10 +83,22 @@ export function SheetLibrary({
     );
   };
 
+  const backToList = () => {
+    onSelect(selected?.folderId ? { kind: "folder", id: selected.folderId } : { kind: "root" });
+  };
+
   return (
-    <div className="scene-library token-library">
-      <h2>Character sheets</h2>
-      <div className="lib-tree-wrap">
+    <div className={selected ? "scene-library token-library sheet-focus" : "scene-library token-library"}>
+      {selected ? (
+        <div className="sheet-open-bar">
+          <button type="button" className="sheet-back" onClick={backToList}>
+            ← Sheets
+          </button>
+          <span className="sheet-open-name">{selected.name}</span>
+        </div>
+      ) : null}
+      <h2 className={selected ? "sheet-hidden" : undefined}>Character sheets</h2>
+      <div className={selected ? "lib-tree-wrap sheet-hidden" : "lib-tree-wrap"}>
         <LibraryTree
           folders={folders}
           items={library}
@@ -130,7 +142,7 @@ export function SheetLibrary({
           }}
         />
       </div>
-      <div className="lib-actions">
+      <div className={selected ? "lib-actions sheet-hidden" : "lib-actions"}>
         {isGm ? (
           <button
             type="button"
@@ -203,12 +215,14 @@ export function SheetLibrary({
           ) : (
             <p className="meta">Read only. Sheets in a folder with your name are yours to edit.</p>
           )}
-          <CharacterSheetEditor
-            key={selected.id}
-            data={selected.data}
-            readOnly={!canEdit}
-            onChange={(data) => persistSheet.schedule(selected.id, data)}
-          />
+          <div className="sheet-editor-host">
+            <CharacterSheetEditor
+              key={selected.id}
+              data={selected.data}
+              readOnly={!canEdit}
+              onChange={(data) => persistSheet.schedule(selected.id, data)}
+            />
+          </div>
         </>
       ) : (
         <p className="meta">

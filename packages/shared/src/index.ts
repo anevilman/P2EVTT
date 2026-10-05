@@ -41,8 +41,19 @@ export {
   parseCharacterSheetData,
   parseCharacterSheetEntry,
   sheetOwnedBy,
+  FEAT_CATEGORIES,
+  ITEM_SLOTS,
+  SPELL_TRADITIONS,
   type CharacterSheetData,
   type CharacterSheetEntry,
+  type FeatCategory,
+  type FeatLine,
+  type InventoryItem,
+  type ItemSlot,
+  type PreparedSlot,
+  type RepertoirePool,
+  type SpellLine,
+  type SpellTradition,
 } from "./characterSheet";
 
 export {
