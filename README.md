@@ -1,13 +1,28 @@
 # P2EVTT
 
-A local Pathfinder 2e virtual tabletop for a friends table. The GM runs a server on their machine; everyone else connects in a browser.
+Local Pathfinder 2e–inspired virtual tabletop for a friends table. The GM runs a server on their machine; everyone else connects in a browser over the LAN. No cloud deploy.
 
-This is a private LAN app. There is no cloud deploy.
+**Why it exists:** I wanted a real-time table for our group — maps, tokens, character sheets, and monster stat blocks linked to tokens — without renting a hosted VTT. Rules stay mostly GM-driven; this is a low-security, friends-and-LAN app by design.
+
+## Stack
+
+- **Server:** Node.js 22, Fastify, WebSockets
+- **Client:** React 19, Vite, PixiJS (maps / tokens)
+- **Monorepo:** pnpm workspaces (`packages/server`, `packages/client`, `packages/shared`)
+
+## What it does
+
+- Multiplayer sessions over WebSockets (GM + players)
+- Maps and a token library
+- Character sheets
+- Monster / creature stat blocks linked to tokens
+- GM can switch maps during play
+- First “I’m the GM” claim wins; other tabs can join as players
 
 ## Requirements
 
-- Node.js 22 LTS x64
-- [pnpm](https://pnpm.io) 9+
+- Node.js 22 LTS (x64)
+- [pnpm](https://pnpm.io) 9+ (repo pins `pnpm@11`)
 
 ## Run
 
@@ -16,12 +31,11 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://127.0.0.1:7788](http://127.0.0.1:7788) in a browser. Enter a name, then **Join as player** or **I'm the GM**.
+Open [http://127.0.0.1:7788](http://127.0.0.1:7788). Enter a name, then **Join as player** or **I'm the GM**.
 
 - Players can sit before anyone claims GM.
-- The first person to click **I'm the GM** gets that seat; everyone else sees it taken.
-- Players do not install anything. They just use a browser.
-- Display name is kept in localStorage (shared). Session is per tab (sessionStorage), so a GM can open a second tab as a player / DMPC.
+- Display name is kept in `localStorage` (shared). Session is per tab (`sessionStorage`), so a GM can open a second tab as a player / DMPC.
+- Players do not install anything — browser only.
 
 Friends on the same network: double-click `start-lan.bat`, or:
 
@@ -31,12 +45,10 @@ pnpm dev -- --lan
 
 Then share `http://<your-lan-ip>:7788`.
 
-## Git phases
+## Notes
 
-Work lands as sequential commits on `main` so a bad step is easy to undo:
+This is intentionally not hardened for the public internet (no auth model for strangers, LAN trust assumed). Fine for a private table; not a SaaS template.
 
-```bash
-git log --oneline
-git revert HEAD          # undo the last phase, keep history
-git reset --hard <sha>   # jump back to a known-good commit (destructive)
-```
+## License
+
+See [LICENSE](./LICENSE).
